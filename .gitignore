@@ -1,0 +1,14 @@
+*.class
+build/
+dist/
+nbproject/private/
+nbbuild/
+nbdist/
+nbactions.xml
+*.log
+*.zip
+*.rar
+.opencode/
+AGENTS.md
+opencode.json
+.Rules
