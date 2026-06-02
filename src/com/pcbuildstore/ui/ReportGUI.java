@@ -74,9 +74,7 @@ public class ReportGUI extends JPanel {
         scrollContent.add(Box.createVerticalGlue());
 
         JScrollPane scroll = new JScrollPane(scrollContent);
-        scroll.setBorder(null);
-        scroll.getViewport().setBackground(Theme.BG);
-        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        Components.applyDarkScrollbar(scroll);
         JPanel wrap = new JPanel(new BorderLayout());
         wrap.setOpaque(false);
         wrap.add(scroll, BorderLayout.CENTER);
@@ -146,10 +144,10 @@ public class ReportGUI extends JPanel {
                     Graphics2D g2 = (Graphics2D) g.create();
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                     g2.setColor(Theme.SURFACE_2);
-                    g2.fillRoundRect(0, 3, getWidth(), getHeight() - 6, 999, 999);
+                    g2.fillRoundRect(0, 3, getWidth(), getHeight() - 6, 3, 3);
                     int w = (int) ((double) val / max * (getWidth() - 4));
                     g2.setColor(colors[ci % colors.length]);
-                    g2.fillRoundRect(0, 3, w, getHeight() - 6, 999, 999);
+                    g2.fillRoundRect(0, 3, w, getHeight() - 6, 3, 3);
                     g2.dispose();
                 }
             };
@@ -216,9 +214,9 @@ public class ReportGUI extends JPanel {
                     int h = (int) ((double) val / max * 40);
                     int cx = getWidth() / 2;
                     g2.setColor(Theme.SURFACE_2);
-                    g2.fillRoundRect(cx - 14, 4, 28, getHeight() - 12, 999, 999);
+                    g2.fillRoundRect(cx - 14, 4, 28, getHeight() - 12, 3, 3);
                     g2.setColor(colors[ci % colors.length]);
-                    g2.fillRoundRect(cx - 14, getHeight() - h - 10, 28, h, 999, 999);
+                    g2.fillRoundRect(cx - 14, getHeight() - h - 10, 28, h, 3, 3);
                     g2.dispose();
                 }
             };
@@ -385,7 +383,7 @@ public class ReportGUI extends JPanel {
         }
 
         JScrollPane scroll = new JScrollPane(table);
-        scroll.setBorder(BorderFactory.createEmptyBorder(0, 8, 8, 8));
+        Components.applyDarkScrollbar(scroll);
         scroll.getViewport().setBackground(Theme.SURFACE);
         panel.add(scroll, BorderLayout.CENTER);
         return panel;

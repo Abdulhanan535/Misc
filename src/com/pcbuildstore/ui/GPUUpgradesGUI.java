@@ -163,7 +163,7 @@ public class GPUUpgradesGUI extends JPanel {
         });
 
         JScrollPane scroll = new JScrollPane(optionsTable);
-        scroll.setBorder(BorderFactory.createEmptyBorder(0, 6, 6, 6));
+        Components.applyDarkScrollbar(scroll);
         scroll.getViewport().setBackground(Theme.SURFACE);
         card.add(scroll, BorderLayout.CENTER);
         left.add(card, BorderLayout.CENTER);

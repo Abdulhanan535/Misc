@@ -15,6 +15,7 @@ import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -26,8 +27,11 @@ import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollBar;
+import javax.swing.JScrollPane;
 import javax.swing.SwingConstants;
 import javax.swing.border.AbstractBorder;
+import javax.swing.plaf.basic.BasicScrollBarUI;
 
 public final class Components {
 
@@ -153,7 +157,7 @@ public final class Components {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setColor(bg);
-                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 999, 999));
+                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 3, 3));
                 g2.dispose();
                 super.paintComponent(g);
             }
@@ -198,6 +202,8 @@ public final class Components {
         return b;
     }
 
+    private static final int BTN_RADIUS = 4;
+
     private static JButton makeBaseButton(String text, Color fg, Font f) {
         JButton b = new JButton(text.toUpperCase()) {
             @Override
@@ -220,13 +226,13 @@ public final class Components {
                 }
                 if (bg.getAlpha() > 0) {
                     g2.setColor(bg);
-                    g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), Theme.R_PILL, Theme.R_PILL));
+                    g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), BTN_RADIUS, BTN_RADIUS));
                 }
                 if ("secondary".equals(variant) || "ghost".equals(variant)) {
                     if (hover || "secondary".equals(variant)) {
                         g2.setColor(Theme.BORDER_HARD);
                         g2.setStroke(new BasicStroke(1));
-                        g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, getWidth() - 1, getHeight() - 1, Theme.R_PILL, Theme.R_PILL));
+                        g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, getWidth() - 1, getHeight() - 1, BTN_RADIUS, BTN_RADIUS));
                     }
                 }
                 g2.dispose();
@@ -283,6 +289,94 @@ public final class Components {
         p.setPreferredSize(new Dimension(0, h));
         p.setLayout(new BorderLayout());
         return p;
+    }
+
+    public static void applyDarkScrollbar(JScrollPane sp) {
+        sp.getVerticalScrollBar().setUI(new DarkScrollBarUI());
+        sp.getVerticalScrollBar().setPreferredSize(new Dimension(8, 0));
+        sp.getVerticalScrollBar().setOpaque(false);
+        sp.getVerticalScrollBar().setUnitIncrement(20);
+        sp.getVerticalScrollBar().setBlockIncrement(80);
+        if (sp.getHorizontalScrollBar() != null) {
+            sp.getHorizontalScrollBar().setUI(new DarkScrollBarUI());
+            sp.getHorizontalScrollBar().setPreferredSize(new Dimension(0, 8));
+            sp.getHorizontalScrollBar().setOpaque(false);
+            sp.getHorizontalScrollBar().setUnitIncrement(20);
+            sp.getHorizontalScrollBar().setBlockIncrement(80);
+        }
+        sp.setBorder(BorderFactory.createEmptyBorder());
+        sp.getViewport().setOpaque(true);
+        sp.getViewport().setBackground(Theme.BG);
+        sp.setOpaque(false);
+    }
+
+    public static class DarkScrollBarUI extends BasicScrollBarUI {
+        @Override
+        protected void configureScrollBarColors() {
+            this.thumbColor = Theme.SURFACE_3;
+            this.thumbDarkShadowColor = Theme.SURFACE_3;
+            this.thumbLightShadowColor = Theme.SURFACE_3;
+            this.thumbHighlightColor = Theme.SURFACE_3;
+            this.trackColor = Theme.BG;
+            this.trackHighlightColor = Theme.BG;
+        }
+
+        @Override
+        protected Dimension getMaximumThumbSize() {
+            return new Dimension(8, Integer.MAX_VALUE);
+        }
+
+        @Override
+        protected Dimension getMinimumThumbSize() {
+            return new Dimension(8, 30);
+        }
+
+        @Override
+        protected JButton createDecreaseButton(int orientation) {
+            JButton b = new JButton();
+            b.setPreferredSize(new Dimension(0, 0));
+            b.setMinimumSize(new Dimension(0, 0));
+            b.setMaximumSize(new Dimension(0, 0));
+            b.setOpaque(false);
+            b.setBorderPainted(false);
+            b.setContentAreaFilled(false);
+            return b;
+        }
+
+        @Override
+        protected JButton createIncreaseButton(int orientation) {
+            JButton b = new JButton();
+            b.setPreferredSize(new Dimension(0, 0));
+            b.setMinimumSize(new Dimension(0, 0));
+            b.setMaximumSize(new Dimension(0, 0));
+            b.setOpaque(false);
+            b.setBorderPainted(false);
+            b.setContentAreaFilled(false);
+            return b;
+        }
+
+        @Override
+        protected void paintTrack(Graphics g, JComponent c, Rectangle r) {
+            g.setColor(Theme.BG);
+            g.fillRect(r.x, r.y, r.width, r.height);
+        }
+
+        @Override
+        protected void paintThumb(Graphics g, JComponent c, Rectangle r) {
+            if (r.isEmpty() || !scrollbar.isEnabled()) return;
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            Color thumbC = isDragging ? Theme.ACCENT : (isThumbRollover() ? Theme.BORDER_HARD : Theme.SURFACE_3);
+            g2.setColor(thumbC);
+            int arc = 4;
+            g2.fill(new RoundRectangle2D.Float(r.x + 0.5f, r.y + 0.5f, r.width - 1f, r.height - 1f, arc, arc));
+            g2.dispose();
+        }
+
+        @Override
+        protected void paintDecreaseHighlight(Graphics g) {}
+        @Override
+        protected void paintIncreaseHighlight(Graphics g) {}
     }
 
     public static class RoundedBorder extends AbstractBorder {

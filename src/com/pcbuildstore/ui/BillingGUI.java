@@ -192,7 +192,7 @@ public class BillingGUI extends JPanel {
         });
 
         JScrollPane scroll = new JScrollPane(billsTable);
-        scroll.setBorder(BorderFactory.createEmptyBorder(0, 6, 6, 6));
+        Components.applyDarkScrollbar(scroll);
         scroll.getViewport().setBackground(Theme.SURFACE);
         card.add(scroll, BorderLayout.CENTER);
         panel.add(card, BorderLayout.CENTER);

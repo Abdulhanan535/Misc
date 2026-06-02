@@ -76,7 +76,11 @@ public class BuildCatalogGUI extends JPanel {
 
     private void buildUI() {
         add(createTopBar(), BorderLayout.NORTH);
-        add(createCenter(), BorderLayout.CENTER);
+        JPanel center = new JPanel(new BorderLayout());
+        center.setBackground(Theme.SIDEBAR);
+        center.add(createCategoryTabs(), BorderLayout.NORTH);
+        center.add(createProductArea(), BorderLayout.CENTER);
+        add(center, BorderLayout.CENTER);
     }
 
     private JPanel createTopBar() {
@@ -105,7 +109,7 @@ public class BuildCatalogGUI extends JPanel {
 
         JPanel searchWrap = new JPanel(new BorderLayout());
         searchWrap.setBackground(Theme.SURFACE_2);
-        searchWrap.setBorder(new Components.RoundedBorder(Theme.BORDER, 1, Theme.R_PILL));
+        searchWrap.setBorder(new Components.RoundedBorder(Theme.BORDER, 1, 4));
         searchWrap.setPreferredSize(new Dimension(220, 32));
 
         JLabel sIcon = new JLabel("  ⌕ ");
@@ -140,48 +144,52 @@ public class BuildCatalogGUI extends JPanel {
         JPanel center = new JPanel(new BorderLayout());
         center.setBackground(Theme.SIDEBAR);
         center.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
-
-        center.add(createCategoryTabs(), BorderLayout.NORTH);
-        center.add(createProductArea(), BorderLayout.CENTER);
-        center.add(createBuildsStrip(), BorderLayout.SOUTH);
         return center;
     }
 
     private JPanel createCategoryTabs() {
         JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         bar.setBackground(Theme.SIDEBAR);
-        bar.setBorder(BorderFactory.createEmptyBorder(0, 36, 10, 36));
+        bar.setBorder(BorderFactory.createEmptyBorder(8, 36, 14, 36));
 
         for (Category cat : categories) {
             final int catId = cat.getCategoryId();
-            JPanel tab = new JPanel() {
+            JPanel tab = new JPanel(new GridBagLayout()) {
                 @Override
                 protected void paintComponent(Graphics g) {
-                    super.paintComponent(g);
                     Graphics2D g2 = (Graphics2D) g.create();
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                     boolean active = Boolean.TRUE.equals(getClientProperty("active"));
                     g2.setColor(active ? Theme.ACCENT : Theme.SURFACE);
-                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), Theme.R_PILL, Theme.R_PILL);
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 4, 4);
+                    if (!active) {
+                        g2.setColor(Theme.BORDER);
+                        g2.setStroke(new BasicStroke(1));
+                        g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 4, 4);
+                    }
                     g2.dispose();
-                    super.paintComponent(g);
                 }
             };
             tab.setOpaque(false);
-            tab.setLayout(new FlowLayout(FlowLayout.CENTER, 0, 0));
-            tab.setPreferredSize(new Dimension(110, 32));
+            tab.setPreferredSize(new Dimension(110, 36));
+            tab.setMinimumSize(new Dimension(110, 36));
+            tab.setMaximumSize(new Dimension(110, 36));
             tab.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             tab.putClientProperty("catId", catId);
             tab.putClientProperty("active", catId == selectedCategoryId);
             JLabel lbl = new JLabel(cat.getName());
             lbl.setFont(Theme.medium(11));
             lbl.setHorizontalAlignment(SwingConstants.CENTER);
+            lbl.setVerticalAlignment(SwingConstants.CENTER);
             tab.add(lbl);
             tab.addMouseListener(new MouseAdapter() {
                 public void mouseClicked(MouseEvent e) {
                     selectedCategoryId = catId;
                     selectedPartId = -1;
-                    for (JPanel t : categoryTabs) t.repaint();
+                    for (JPanel t : categoryTabs) {
+                        t.putClientProperty("active", (Integer) t.getClientProperty("catId") == selectedCategoryId);
+                        t.repaint();
+                    }
                     loadParts();
                 }
             });
@@ -207,12 +215,18 @@ public class BuildCatalogGUI extends JPanel {
         productGrid = new JPanel();
         productGrid.setLayout(new GridLayout(0, 3, 12, 12));
         productGrid.setBackground(Theme.SIDEBAR);
-        productGrid.setBorder(BorderFactory.createEmptyBorder(0, 36, 16, 0));
+        productGrid.setBorder(BorderFactory.createEmptyBorder(0, 36, 8, 0));
 
-        JScrollPane scroll = new JScrollPane(productGrid);
-        scroll.setBorder(null);
-        scroll.getViewport().setBackground(Theme.SIDEBAR);
-        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        JPanel gridWrap = new JPanel();
+        gridWrap.setLayout(new BoxLayout(gridWrap, BoxLayout.Y_AXIS));
+        gridWrap.setBackground(Theme.SIDEBAR);
+        gridWrap.add(productGrid);
+        gridWrap.add(Box.createVerticalStrut(8));
+        gridWrap.add(createBuildsStrip());
+        gridWrap.add(Box.createVerticalGlue());
+
+        JScrollPane scroll = new JScrollPane(gridWrap);
+        Components.applyDarkScrollbar(scroll);
         leftPanel.add(scroll, BorderLayout.CENTER);
         area.add(leftPanel, BorderLayout.CENTER);
 
@@ -368,7 +382,7 @@ public class BuildCatalogGUI extends JPanel {
             BorderFactory.createMatteBorder(1, 0, 0, 0, Theme.BORDER),
             BorderFactory.createEmptyBorder(10, 36, 10, 36)
         ));
-        strip.setPreferredSize(new Dimension(0, 72));
+        strip.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
 
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);

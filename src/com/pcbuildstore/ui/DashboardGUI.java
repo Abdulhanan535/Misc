@@ -17,6 +17,7 @@ import javax.swing.border.AbstractBorder;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.RoundRectangle2D;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -161,6 +162,9 @@ public class DashboardGUI extends JFrame {
         JPanel view = new JPanel(new BorderLayout());
         view.setBackground(Theme.BG);
 
+        JPanel side = createChatBotPanel();
+        view.add(side, BorderLayout.WEST);
+
         JPanel inner = new JPanel();
         inner.setLayout(new BoxLayout(inner, BoxLayout.Y_AXIS));
         inner.setBackground(Theme.BG);
@@ -174,7 +178,7 @@ public class DashboardGUI extends JFrame {
         inner.add(Components.vSpacer(10));
         featuredRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
         featuredRow.setOpaque(false);
-        featuredRow.setBorder(BorderFactory.createEmptyBorder(0, 36, 0, 36));
+        featuredRow.setBorder(BorderFactory.createEmptyBorder(0, 32, 0, 36));
         featuredRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         inner.add(featuredRow);
         inner.add(Components.vSpacer(20));
@@ -183,15 +187,13 @@ public class DashboardGUI extends JFrame {
         recentBuildsRow = new JPanel();
         recentBuildsRow.setLayout(new BoxLayout(recentBuildsRow, BoxLayout.X_AXIS));
         recentBuildsRow.setOpaque(false);
-        recentBuildsRow.setBorder(BorderFactory.createEmptyBorder(0, 36, 18, 36));
+        recentBuildsRow.setBorder(BorderFactory.createEmptyBorder(0, 32, 18, 36));
         recentBuildsRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         inner.add(recentBuildsRow);
         inner.add(Box.createVerticalGlue());
 
         JScrollPane scroll = new JScrollPane(inner);
-        scroll.setBorder(null);
-        scroll.getViewport().setBackground(Theme.BG);
-        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        Components.applyDarkScrollbar(scroll);
         view.add(scroll, BorderLayout.CENTER);
         return view;
     }
@@ -279,6 +281,251 @@ public class DashboardGUI extends JFrame {
         return wrap;
     }
 
+    private JPanel createChatBotPanel() {
+        JPanel side = new JPanel(new BorderLayout());
+        side.setBackground(Theme.SIDEBAR);
+        side.setPreferredSize(new Dimension(300, 0));
+        side.setMinimumSize(new Dimension(280, 0));
+        side.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, Theme.BORDER));
+
+        JPanel header = new JPanel(new BorderLayout(8, 0));
+        header.setOpaque(true);
+        header.setBackground(Theme.SIDEBAR);
+        header.setBorder(BorderFactory.createEmptyBorder(14, 16, 14, 16));
+
+        JPanel titleRow = new JPanel();
+        titleRow.setLayout(new BoxLayout(titleRow, BoxLayout.X_AXIS));
+        titleRow.setOpaque(false);
+        titleRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel dot = Components.dot(Theme.ACCENT, 8);
+        titleRow.add(dot);
+        titleRow.add(Box.createHorizontalStrut(8));
+        JLabel ttl = new JLabel("PC ASSISTANT");
+        ttl.setFont(Theme.bold(10));
+        ttl.setForeground(Theme.TEXT);
+        titleRow.add(ttl);
+        titleRow.add(Box.createHorizontalGlue());
+        JLabel live = new JLabel("ONLINE");
+        live.setFont(Theme.medium(8));
+        live.setForeground(Theme.ACCENT);
+        titleRow.add(live);
+        titleRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
+        header.add(titleRow, BorderLayout.NORTH);
+
+        JLabel sub = new JLabel("Ask about parts, builds, prices");
+        sub.setFont(Theme.regular(10));
+        sub.setForeground(Theme.TEXT_3);
+        sub.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
+        header.add(sub, BorderLayout.CENTER);
+
+        side.add(header, BorderLayout.NORTH);
+
+        JPanel messagesWrap = new JPanel();
+        messagesWrap.setLayout(new BoxLayout(messagesWrap, BoxLayout.Y_AXIS));
+        messagesWrap.setBackground(Theme.SIDEBAR);
+        messagesWrap.setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
+
+        addBotMessage(messagesWrap, "Hi! I'm PC Assistant. Ask me about parts, compatibility, prices, or save a build.");
+        addBotMessage(messagesWrap, "Try: \"best CPU under 50k\" or \"help me pick a GPU\".");
+
+        JScrollPane msgScroll = new JScrollPane(messagesWrap);
+        msgScroll.setOpaque(false);
+        msgScroll.getViewport().setOpaque(false);
+        Components.applyDarkScrollbar(msgScroll);
+        msgScroll.setBorder(BorderFactory.createEmptyBorder());
+        side.add(msgScroll, BorderLayout.CENTER);
+
+        JPanel inputBar = new JPanel(new BorderLayout(8, 0));
+        inputBar.setBackground(Theme.SIDEBAR);
+        inputBar.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(1, 0, 0, 0, Theme.BORDER),
+            BorderFactory.createEmptyBorder(12, 12, 12, 12)
+        ));
+
+        JTextField input = new JTextField();
+        input.setFont(Theme.regular(11));
+        input.setForeground(Theme.TEXT);
+        input.setCaretColor(Theme.ACCENT);
+        input.setBackground(Theme.SURFACE_2);
+        input.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(Theme.BORDER_HARD, 1),
+            BorderFactory.createEmptyBorder(8, 10, 8, 10)
+        ));
+        input.putClientProperty("JTextField.placeholderText", "Type a question...");
+        input.addActionListener(e -> {
+            String text = input.getText().trim();
+            if (text.isEmpty()) return;
+            addUserMessage(messagesWrap, text);
+            input.setText("");
+            String reply = botReply(text);
+            javax.swing.Timer t = new javax.swing.Timer(450, ev -> {
+                addBotMessage(messagesWrap, reply);
+                messagesWrap.revalidate();
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    JScrollBar bar = msgScroll.getVerticalScrollBar();
+                    bar.setValue(bar.getMaximum());
+                });
+            });
+            t.setRepeats(false);
+            t.start();
+            messagesWrap.revalidate();
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                JScrollBar bar = msgScroll.getVerticalScrollBar();
+                bar.setValue(bar.getMaximum());
+            });
+        });
+
+        JButton send = new JButton("SEND") {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                boolean hov = Boolean.TRUE.equals(getClientProperty("hover"));
+                g2.setColor(hov ? Theme.ACCENT_HOV : Theme.ACCENT);
+                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 4, 4));
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        send.setContentAreaFilled(false);
+        send.setBorderPainted(false);
+        send.setFocusPainted(false);
+        send.setOpaque(false);
+        send.setFont(Theme.bold(9));
+        send.setForeground(Theme.TEXT_INV);
+        send.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        send.setPreferredSize(new Dimension(64, 34));
+        send.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+        send.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) { send.putClientProperty("hover", true); send.repaint(); }
+            public void mouseExited(MouseEvent e)  { send.putClientProperty("hover", false); send.repaint(); }
+        });
+        send.addActionListener(e -> {
+            String text = input.getText().trim();
+            if (text.isEmpty()) return;
+            addUserMessage(messagesWrap, text);
+            input.setText("");
+            String reply = botReply(text);
+            javax.swing.Timer t = new javax.swing.Timer(450, ev -> {
+                addBotMessage(messagesWrap, reply);
+                messagesWrap.revalidate();
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    JScrollBar bar = msgScroll.getVerticalScrollBar();
+                    bar.setValue(bar.getMaximum());
+                });
+            });
+            t.setRepeats(false);
+            t.start();
+            messagesWrap.revalidate();
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                JScrollBar bar = msgScroll.getVerticalScrollBar();
+                bar.setValue(bar.getMaximum());
+            });
+        });
+
+        inputBar.add(input, BorderLayout.CENTER);
+        inputBar.add(send, BorderLayout.EAST);
+        side.add(inputBar, BorderLayout.SOUTH);
+
+        return side;
+    }
+
+    private void addUserMessage(JPanel wrap, String text) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 4));
+        row.setOpaque(false);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel bubble = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(Theme.ACCENT);
+                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 8, 8));
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        bubble.setOpaque(false);
+        bubble.setLayout(new BorderLayout());
+        bubble.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+        JLabel l = new JLabel("<html><div style='width:200px;color:#08080C'>" + escape(text) + "</div></html>");
+        l.setFont(Theme.regular(11));
+        l.setForeground(new Color(0x08, 0x08, 0x0C));
+        bubble.add(l, BorderLayout.CENTER);
+        bubble.setMaximumSize(new Dimension(240, Integer.MAX_VALUE));
+        row.add(bubble);
+        wrap.add(row);
+        wrap.add(Box.createVerticalStrut(2));
+    }
+
+    private void addBotMessage(JPanel wrap, String text) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 4));
+        row.setOpaque(false);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel bubble = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(Theme.SURFACE_2);
+                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 8, 8));
+                g2.setColor(Theme.BORDER);
+                g2.setStroke(new BasicStroke(1));
+                g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, getWidth() - 1, getHeight() - 1, 8, 8));
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        bubble.setOpaque(false);
+        bubble.setLayout(new BorderLayout());
+        bubble.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+        JLabel l = new JLabel("<html><div style='width:220px;color:#F5F5FA'>" + escape(text) + "</div></html>");
+        l.setFont(Theme.regular(11));
+        l.setForeground(Theme.TEXT);
+        bubble.add(l, BorderLayout.CENTER);
+        bubble.setMaximumSize(new Dimension(260, Integer.MAX_VALUE));
+        row.add(bubble);
+        wrap.add(row);
+        wrap.add(Box.createVerticalStrut(2));
+    }
+
+    private String escape(String s) {
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    private String botReply(String q) {
+        String t = q.toLowerCase();
+        if (t.contains("hi") || t.contains("hello") || t.contains("hey")) {
+            return "Hey there! What are you building today — gaming, work, or content creation?";
+        }
+        if (t.contains("cpu") || t.contains("processor") || t.contains("ryzen") || t.contains("intel")) {
+            return "For CPUs: AMD Ryzen 5 7600 is great for mid-range. Ryzen 7 7700X for high-end. Intel i5-13600K is solid for gaming under 70k PKR.";
+        }
+        if (t.contains("gpu") || t.contains("graphics") || t.contains("rtx") || t.contains("radeon")) {
+            return "GPUs depend on resolution. 1080p: RTX 4060 / RX 7600. 1440p: RTX 4070. 4K: RTX 4080. Open the GPU Upgrades page for comparisons.";
+        }
+        if (t.contains("budget") || t.contains("cheap") || t.contains("under")) {
+            return "Budget build ~150k PKR: Ryzen 5 5600X + RX 6600 + 16GB DDR4 + 500GB NVMe + 550W PSU. Open Build Configurator to start.";
+        }
+        if (t.contains("save") || t.contains("saved build") || t.contains("my build")) {
+            return "To save a build: pick parts in Build Configurator, then click SAVE BUILD in the right panel. Recent builds appear on the dashboard.";
+        }
+        if (t.contains("compatibility") || t.contains("compatible") || t.contains("compat")) {
+            return "Check the Reports tab for compatibility warnings. Score < 70 means a part pairing is risky — usually PSU or socket mismatch.";
+        }
+        if (t.contains("price") || t.contains("cost") || t.contains("pkr")) {
+            return "All prices are in PKR. Revenue stat on the dashboard shows total spend across saved builds.";
+        }
+        if (t.contains("help") || t.contains("?")) {
+            return "I can help with: CPU picks, GPU recommendations, budget builds, compatibility, saving builds, and pricing. Just ask!";
+        }
+        if (t.contains("thank")) {
+            return "Anytime. Happy building!";
+        }
+        return "Got it. Try asking about CPUs, GPUs, budget builds, compatibility, or saving your build.";
+    }
+
     private JPanel createStatsRow() {
         JPanel wrap = new JPanel(new BorderLayout());
         wrap.setOpaque(false);
@@ -359,9 +606,9 @@ public class DashboardGUI extends JFrame {
                     Graphics2D g2 = (Graphics2D) g.create();
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                     g2.setColor(hover ? Theme.SURFACE_2 : Theme.SURFACE);
-                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), Theme.R_PILL, Theme.R_PILL);
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
                     g2.setColor(hover ? Theme.BORDER_HARD : Theme.BORDER);
-                    g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, Theme.R_PILL, Theme.R_PILL);
+                    g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 6, 6);
                     g2.dispose();
                     super.paintComponent(g);
                 }
@@ -440,7 +687,7 @@ public class DashboardGUI extends JFrame {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setColor(Theme.SURFACE);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 999, 999);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 3, 3);
                 g2.dispose();
                 super.paintComponent(g);
             }
