@@ -126,6 +126,6 @@ public class ChatService {
 
     private String truncate(String s, int n) {
         if (s == null) return "";
-        return s.length() <= n ? s : s.substring(0, n) + "…";
+        return s.length() <= n ? s : s.substring(0, n) + "...";
     }
 }

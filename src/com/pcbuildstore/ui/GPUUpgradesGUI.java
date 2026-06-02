@@ -206,7 +206,7 @@ public class GPUUpgradesGUI extends JPanel {
         info.setOpaque(true);
         info.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel name = new JLabel("—");
+        JLabel name = new JLabel(" - ");
         name.setFont(Theme.bold(13));
         name.setForeground(Theme.TEXT);
         info.add(name, BorderLayout.NORTH);
@@ -313,7 +313,7 @@ public class GPUUpgradesGUI extends JPanel {
         buildSelector.addItem("-- Select a build --");
         List<Build> builds = buildDAO.getAllBuilds();
         for (Build b : builds) {
-            buildSelector.addItem(b.getBuildId() + "  ·  " + b.getName() + "  ·  PKR " + String.format("%,d", b.getTotalPrice()));
+            buildSelector.addItem(b.getBuildId() + "  -  " + b.getName() + "  -  PKR " + String.format("%,d", b.getTotalPrice()));
         }
     }
 
@@ -322,7 +322,7 @@ public class GPUUpgradesGUI extends JPanel {
         if (idx <= 0) {
             selectedBuildId = -1;
             optionsModel.setRowCount(0);
-            currentGpuLabel.setText("—");
+            currentGpuLabel.setText(" - ");
             currentPriceLabel.setText("PKR 0");
             currentScoreLabel.setText("0");
             return;

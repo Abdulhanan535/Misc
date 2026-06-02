@@ -383,7 +383,7 @@ public class BillingGUI extends JPanel {
         buildSelector.addItem("-- Select a build --");
         List<Build> builds = buildDAO.getAllBuilds();
         for (Build b : builds) {
-            buildSelector.addItem(b.getBuildId() + "  ·  " + b.getName() + "  ·  PKR " + String.format("%,d", b.getTotalPrice()));
+            buildSelector.addItem(b.getBuildId() + "  -  " + b.getName() + "  -  PKR " + String.format("%,d", b.getTotalPrice()));
         }
     }
 
@@ -473,7 +473,7 @@ public class BillingGUI extends JPanel {
     private void loadBills() {
         billsModel.setRowCount(0);
         List<Bill> bills = billDAO.getAllBills();
-        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MMM d, yyyy  ·  HH:mm");
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MMM d, yyyy 'at' HH:mm");
         for (Bill b : bills) {
             billsModel.addRow(new Object[]{
                 b.getBillId(),
@@ -519,7 +519,7 @@ public class BillingGUI extends JPanel {
         receiptPanel.add(Components.vSpacer(2));
 
         JLabel dt = new JLabel(bill.getPurchaseDate() != null
-            ? bill.getPurchaseDate().format(DateTimeFormatter.ofPattern("MMM d, yyyy  ·  HH:mm"))
+            ? bill.getPurchaseDate().format(DateTimeFormatter.ofPattern("MMM d, yyyy 'at' HH:mm"))
             : "N/A");
         dt.setFont(Theme.regular(11));
         dt.setForeground(Theme.TEXT_2);

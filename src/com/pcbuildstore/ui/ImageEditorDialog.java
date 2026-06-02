@@ -46,7 +46,7 @@ public class ImageEditorDialog extends JDialog {
         });
 
         if (part.hasImage()) {
-            setStatus("Loading current image…", Theme.TEXT_3);
+            setStatus("Loading current image...", Theme.TEXT_3);
             loadPreviewAsync(part.getImagePath());
         }
     }
@@ -183,10 +183,10 @@ public class ImageEditorDialog extends JDialog {
         String url = urlField.getText().trim();
         if (url.isEmpty()) {
             previewLabel.setIcon(ImageCache.getDefault(part.getCategoryId(), 100, 100));
-            setStatus("Empty — category default will be used.", Theme.TEXT_3);
+            setStatus("Empty  -  category default will be used.", Theme.TEXT_3);
             return;
         }
-        setStatus("Loading…", Theme.TEXT_3);
+        setStatus("Loading...", Theme.TEXT_3);
         loadPreviewAsync(url);
     }
 
@@ -203,7 +203,7 @@ public class ImageEditorDialog extends JDialog {
                     previewLabel.setIcon(icon);
                     boolean isDefault = icon == ImageCache.getDefault(part.getCategoryId(), 100, 100);
                     if (isDefault && !url.isEmpty()) {
-                        setStatus("Could not load — URL saved anyway (default shown on failure).", Theme.SALE);
+                        setStatus("Could not load  -  URL saved anyway (default shown on failure).", Theme.SALE);
                     } else {
                         setStatus("Loaded successfully.", Theme.SUCCESS);
                     }

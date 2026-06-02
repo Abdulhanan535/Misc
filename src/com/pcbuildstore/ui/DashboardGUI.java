@@ -234,7 +234,7 @@ public class DashboardGUI extends JFrame {
         left.setOpaque(false);
         left.setBorder(BorderFactory.createEmptyBorder(32, 36, 32, 20));
 
-        JLabel ey = Components.eyebrow(getGreeting().toUpperCase() + "  ·  " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d")).toUpperCase());
+        JLabel ey = Components.eyebrow(getGreeting().toUpperCase() + "  -  " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d")).toUpperCase());
         ey.setAlignmentX(Component.LEFT_ALIGNMENT);
         left.add(ey);
         left.add(Components.vSpacer(8));
@@ -246,7 +246,7 @@ public class DashboardGUI extends JFrame {
         left.add(h1);
         left.add(Components.vSpacer(8));
 
-        JLabel sub = new JLabel("<html><span style='color:#9090A8'>Curated parts. Compatibility-checked builds. Real performance scores — all in one place to design, save and purchase your next PC.</span></html>");
+        JLabel sub = new JLabel("<html><span style='color:#9090A8'>Curated parts. Compatibility-checked builds. Real performance scores  -  all in one place to design, save and purchase your next PC.</span></html>");
         sub.setFont(Theme.regular(12));
         sub.setForeground(Theme.TEXT_2);
         sub.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -329,7 +329,7 @@ public class DashboardGUI extends JFrame {
         titleRow.add(ttl);
         titleRow.add(Box.createHorizontalGlue());
 
-        JButton gear = new JButton("⚙") {
+        JButton gear = new JButton() {
             @Override
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
@@ -339,8 +339,14 @@ public class DashboardGUI extends JFrame {
                     g2.setColor(Theme.SURFACE_2);
                     g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 4, 4));
                 }
+                int cx = getWidth() / 2;
+                int cy = getHeight() / 2;
+                g2.setColor(Theme.TEXT_3);
+                g2.setStroke(new BasicStroke(1.4f));
+                g2.drawOval(cx - 4, cy - 4, 8, 8);
+                g2.drawLine(cx - 6, cy, cx + 6, cy);
+                g2.drawLine(cx, cy - 6, cx, cy + 6);
                 g2.dispose();
-                super.paintComponent(g);
             }
         };
         gear.setContentAreaFilled(false);
@@ -368,7 +374,7 @@ public class DashboardGUI extends JFrame {
         titleRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
         header.add(titleRow, BorderLayout.NORTH);
 
-        JLabel sub = new JLabel(chatConfig.isConfigured() ? "Ask about parts, builds, prices" : "Click ⚙ to connect a model");
+        JLabel sub = new JLabel(chatConfig.isConfigured() ? "Ask about parts, builds, prices" : "Click (gear) to connect a model");
         sub.setFont(Theme.regular(10));
         sub.setForeground(Theme.TEXT_3);
         sub.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
@@ -385,7 +391,7 @@ public class DashboardGUI extends JFrame {
         if (chatConfig.isConfigured()) {
             addBotMessage(chatMessagesWrap, "Ask me about parts, compatibility, prices, or saving a build.");
         } else {
-            addBotMessage(chatMessagesWrap, "Click the ⚙ icon to connect an OpenAI-compatible /v1 endpoint.");
+            addBotMessage(chatMessagesWrap, "Click the (gear) icon to connect an OpenAI-compatible /v1 endpoint.");
         }
 
         chatMsgScroll = new JScrollPane(chatMessagesWrap);
@@ -487,7 +493,7 @@ public class DashboardGUI extends JFrame {
         if (!chatConfig.isConfigured()) {
             addUserMessage(chatMessagesWrap, text);
             chatInput.setText("");
-            addBotMessage(chatMessagesWrap, "Not connected yet. Click the ⚙ icon to set your base URL, API key, and model.");
+            addBotMessage(chatMessagesWrap, "Not connected yet. Click the (gear) icon to set your base URL, API key, and model.");
             scrollChatToBottom();
             return;
         }
@@ -525,7 +531,7 @@ public class DashboardGUI extends JFrame {
                 chatInput.setEnabled(true);
                 chatSendBtn.setEnabled(true);
                 setChatStatus(Theme.EMBER, "ERROR");
-                finalizeBotMessage(pending, (acc.length() > 0 ? acc.toString() + "\n\n" : "") + "⚠ " + err);
+                finalizeBotMessage(pending, (acc.length() > 0 ? acc.toString() + "\n\n" : "") + "! " + err);
             });
         }, chatCancel);
         scrollChatToBottom();
@@ -618,7 +624,7 @@ public class DashboardGUI extends JFrame {
         bubble.setOpaque(false);
         bubble.setLayout(new BorderLayout());
         bubble.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
-        JLabel l = new JLabel("<html><div style='width:220px;color:#F5F5FA'>…</div></html>");
+        JLabel l = new JLabel("<html><div style='width:220px;color:#F5F5FA'>...</div></html>");
         l.setFont(Theme.regular(11));
         l.setForeground(Theme.TEXT);
         l.setName("bot-streaming");
@@ -648,12 +654,12 @@ public class DashboardGUI extends JFrame {
     private String botReply(String q) {
         String t = q.toLowerCase();
         if (t.contains("hi") || t.contains("hello") || t.contains("hey")) {
-            return "Hey there! What are you building today — gaming, work, or content creation?";
+            return "Hey there! What are you building today  -  gaming, work, or content creation?";
         }
         if (t.contains("help") || t.contains("?")) {
             return "I can help with: CPU picks, GPU recommendations, budget builds, compatibility, saving builds, and pricing. Just ask!";
         }
-        return "Connect a model via the ⚙ icon to get a real response. For now, try keywords like: cpu, gpu, budget, save, compat, help, hi.";
+        return "Connect a model via the (gear) icon to get a real response. For now, try keywords like: cpu, gpu, budget, save, compat, help, hi.";
     }
 
     private JPanel createStatsRow() {
@@ -752,7 +758,7 @@ public class DashboardGUI extends JFrame {
             t.setFont(Theme.medium(11));
             t.setForeground(Theme.TEXT);
             chip.add(t);
-            JLabel ct = new JLabel(" · " + partDAO.getPartCountByCategory(catId));
+            JLabel ct = new JLabel("  " + partDAO.getPartCountByCategory(catId));
             ct.setFont(Theme.regular(10));
             ct.setForeground(Theme.TEXT_3);
             chip.add(ct);
@@ -1019,7 +1025,7 @@ public class DashboardGUI extends JFrame {
         name.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
         head.add(name, BorderLayout.NORTH);
         String dateStr = b.getCreatedAt() != null
-            ? b.getCreatedAt().format(DateTimeFormatter.ofPattern("MMM d  ·  HH:mm"))
+            ? b.getCreatedAt().format(DateTimeFormatter.ofPattern("MMM d 'at' HH:mm"))
             : "";
         JLabel date = new JLabel(dateStr);
         date.setFont(Theme.regular(9));
@@ -1045,7 +1051,7 @@ public class DashboardGUI extends JFrame {
             cn.setForeground(Theme.TEXT_3);
             cn.setPreferredSize(new Dimension(30, 14));
             row.add(cn);
-            String pname = "—";
+            String pname = " - ";
             for (BuildPart bp : parts) {
                 if (bp.getCategoryId() == i + 1) {
                     Part p = partDAO.getPartById(bp.getPartId());
@@ -1077,7 +1083,7 @@ public class DashboardGUI extends JFrame {
 
     private String truncate(String s, int n) {
         if (s == null) return "";
-        return s.length() <= n ? s : s.substring(0, n - 1) + "…";
+        return s.length() <= n ? s : s.substring(0, n - 1) + "...";
     }
 
     private String getGreeting() {

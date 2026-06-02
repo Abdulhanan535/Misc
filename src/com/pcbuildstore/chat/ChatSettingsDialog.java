@@ -18,7 +18,7 @@ public class ChatSettingsDialog extends JDialog {
     private boolean saved = false;
 
     public ChatSettingsDialog(Window owner, ChatConfig config) {
-        super(owner, "PC Assistant — Settings", ModalityType.APPLICATION_MODAL);
+        super(owner, "PC Assistant  -  Settings", ModalityType.APPLICATION_MODAL);
         this.config = config;
         setSize(560, 460);
         setLocationRelativeTo(owner);

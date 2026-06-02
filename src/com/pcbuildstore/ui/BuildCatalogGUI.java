@@ -113,8 +113,21 @@ public class BuildCatalogGUI extends JPanel {
         searchWrap.setBorder(new Components.RoundedBorder(Theme.BORDER, 1, 4));
         searchWrap.setPreferredSize(new Dimension(220, 32));
 
-        JLabel sIcon = new JLabel("  ⌕ ");
-        sIcon.setFont(Theme.regular(12));
+        JLabel sIcon = new JLabel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getForeground());
+                int cx = getWidth() / 2;
+                int cy = getHeight() / 2;
+                g2.setStroke(new BasicStroke(1.4f));
+                g2.drawOval(cx - 5, cy - 5, 10, 10);
+                g2.drawLine(cx + 3, cy + 3, cx + 7, cy + 7);
+                g2.dispose();
+            }
+        };
+        sIcon.setPreferredSize(new Dimension(28, 28));
         sIcon.setForeground(Theme.TEXT_3);
         searchWrap.add(sIcon, BorderLayout.WEST);
 
@@ -717,7 +730,7 @@ public class BuildCatalogGUI extends JPanel {
         name.setForeground(Theme.TEXT);
         chip.add(name, BorderLayout.NORTH);
 
-        JLabel detail = new JLabel(String.format("PKR %,d  ·  %d pts", b.getTotalPrice(), b.getTotalScore()));
+        JLabel detail = new JLabel(String.format("PKR %,d  -  %d pts", b.getTotalPrice(), b.getTotalScore()));
         detail.setFont(Theme.mono(9));
         detail.setForeground(Theme.TEXT_3);
         chip.add(detail, BorderLayout.SOUTH);
