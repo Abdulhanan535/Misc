@@ -44,6 +44,7 @@ public class BuildCatalogGUI extends JPanel {
     private JLabel totalPriceLabel;
     private JLabel totalScoreLabel;
     private final Map<Integer, JLabel> partSlotLabels = new HashMap<>();
+    private final Map<Integer, JLabel> slotIconLabels = new HashMap<>();
     private final Map<Integer, Integer> currentBuildParts = new HashMap<>();
     private final Map<Integer, Part> partById = new HashMap<>();
     private final Map<Integer, ImageIcon> preloadedIcons = new ConcurrentHashMap<>();
@@ -323,10 +324,42 @@ public class BuildCatalogGUI extends JPanel {
         partSlotLabels.put(catId, part);
         slot.add(textCol, BorderLayout.CENTER);
 
-        JLabel check = new JLabel("＋");
+        JLabel check = new JLabel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                String text = getText();
+                int cx = getWidth() / 2;
+                int cy = getHeight() / 2;
+                if ("+".equals(text)) {
+                    g2.setColor(getForeground());
+                    g2.setStroke(new BasicStroke(1.4f));
+                    g2.drawLine(cx - 4, cy, cx + 4, cy);
+                    g2.drawLine(cx, cy - 4, cx, cy + 4);
+                } else if ("*".equals(text)) {
+                    g2.setColor(getForeground());
+                    g2.setStroke(new BasicStroke(1.6f));
+                    g2.drawLine(cx - 5, cy, cx + 5, cy);
+                    g2.drawLine(cx, cy - 5, cx, cy + 5);
+                    g2.drawLine(cx - 4, cy - 4, cx + 4, cy + 4);
+                    g2.drawLine(cx - 4, cy + 4, cx + 4, cy - 4);
+                } else {
+                    g2.setColor(getForeground());
+                    g2.setStroke(new BasicStroke(1.6f));
+                    g2.drawLine(cx - 5, cy - 5, cx + 5, cy + 5);
+                    g2.drawLine(cx - 5, cy + 5, cx + 5, cy - 5);
+                }
+                g2.dispose();
+            }
+        };
+        check.setText("+");
         check.setFont(Theme.light(16));
         check.setForeground(Theme.TEXT_3);
         check.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 8));
+        check.setPreferredSize(new Dimension(18, 18));
+        check.setName("slot-icon-" + catId);
+        slotIconLabels.put(catId, check);
         slot.add(check, BorderLayout.EAST);
         return slot;
     }
@@ -523,7 +556,7 @@ public class BuildCatalogGUI extends JPanel {
         price.setFont(Theme.mono(12));
         price.setForeground(Theme.ACCENT);
         footer.add(price, BorderLayout.WEST);
-        JLabel score = new JLabel("★ " + p.getPerformanceScore());
+        JLabel score = new JLabel(p.getPerformanceScore() + " pts");
         score.setFont(Theme.medium(10));
         score.setForeground(Theme.VIOLET);
         footer.add(score, BorderLayout.EAST);
@@ -589,6 +622,11 @@ public class BuildCatalogGUI extends JPanel {
             lbl.setText(part.getBrand() + " " + part.getName());
             lbl.setForeground(Theme.TEXT);
         }
+        JLabel icon = slotIconLabels.get(part.getCategoryId());
+        if (icon != null) {
+            icon.setText("x");
+            icon.setForeground(Theme.EMBER);
+        }
         updateTotals();
     }
 
@@ -607,6 +645,7 @@ public class BuildCatalogGUI extends JPanel {
         selectedSocket = null;
         selectedDdrGen = null;
         for (JLabel l : partSlotLabels.values()) { l.setText("Not selected"); l.setForeground(Theme.TEXT_3); }
+        for (JLabel l : slotIconLabels.values()) { l.setText("+"); l.setForeground(Theme.TEXT_3); }
         totalPriceLabel.setText("PKR 0");
         totalScoreLabel.setText("0");
         loadParts();
@@ -678,7 +717,7 @@ public class BuildCatalogGUI extends JPanel {
         name.setForeground(Theme.TEXT);
         chip.add(name, BorderLayout.NORTH);
 
-        JLabel detail = new JLabel(String.format("PKR %,d  ·  ★ %d", b.getTotalPrice(), b.getTotalScore()));
+        JLabel detail = new JLabel(String.format("PKR %,d  ·  %d pts", b.getTotalPrice(), b.getTotalScore()));
         detail.setFont(Theme.mono(9));
         detail.setForeground(Theme.TEXT_3);
         chip.add(detail, BorderLayout.SOUTH);
@@ -693,6 +732,8 @@ public class BuildCatalogGUI extends JPanel {
             currentBuildParts.put(bp.getCategoryId(), bp.getPartId());
             JLabel l = partSlotLabels.get(bp.getCategoryId());
             if (l != null) { l.setText(bp.getPartBrand() + " " + bp.getPartName()); l.setForeground(Theme.TEXT); }
+            JLabel icon = slotIconLabels.get(bp.getCategoryId());
+            if (icon != null) { icon.setText("x"); icon.setForeground(Theme.EMBER); }
             if (bp.getCategoryId() == 1) {
                 Part cpu = partDAO.getPartById(bp.getPartId());
                 if (cpu != null) { selectedSocket = cpu.getSocketType(); selectedDdrGen = cpu.getDdrGeneration(); }

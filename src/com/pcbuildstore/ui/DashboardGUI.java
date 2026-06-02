@@ -204,18 +204,12 @@ public class DashboardGUI extends JFrame {
         inner.add(Components.vSpacer(14));
         inner.add(sectionTitle("Featured parts", "Hand-picked from the catalog"));
         inner.add(Components.vSpacer(10));
-        featuredRow = new JPanel(new GridLayout(1, 5, 12, 0));
-        featuredRow.setOpaque(false);
-        featuredRow.setBorder(BorderFactory.createEmptyBorder(0, 24, 0, 24));
-        featuredRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        featuredRow = makeFlexRow(12, 0, 24, 0, 24);
         inner.add(featuredRow);
         inner.add(Components.vSpacer(20));
         inner.add(sectionTitle("Recent builds", "Your last 5 saved builds"));
         inner.add(Components.vSpacer(10));
-        recentBuildsRow = new JPanel(new GridLayout(1, 5, 12, 0));
-        recentBuildsRow.setOpaque(false);
-        recentBuildsRow.setBorder(BorderFactory.createEmptyBorder(0, 24, 18, 24));
-        recentBuildsRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        recentBuildsRow = makeFlexRow(12, 0, 24, 18, 24);
         inner.add(recentBuildsRow);
         inner.add(Box.createVerticalGlue());
 
@@ -793,6 +787,7 @@ public class DashboardGUI extends JFrame {
             new Components.RoundedBorder(Theme.BORDER, 1, Theme.R_MEDIUM),
             BorderFactory.createEmptyBorder(12, 12, 12, 12)
         ));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         card.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent e) {
@@ -863,7 +858,7 @@ public class DashboardGUI extends JFrame {
         price.setForeground(Theme.ACCENT);
         footer.add(price, BorderLayout.WEST);
 
-        JLabel score = new JLabel("★ " + p.getPerformanceScore());
+        JLabel score = new JLabel(p.getPerformanceScore() + " pts");
         score.setFont(Theme.medium(10));
         score.setForeground(Theme.VIOLET);
         score.setHorizontalAlignment(SwingConstants.RIGHT);
@@ -899,9 +894,10 @@ public class DashboardGUI extends JFrame {
             if (!cat.isEmpty()) all.add(cat.get(0));
         }
 
-        for (Part p : all) {
+        for (int i = 0; i < all.size(); i++) {
+            Part p = all.get(i);
             partById.put(p.getPartId(), p);
-            featuredRow.add(makeProductCard(p));
+            flexAdd(featuredRow, makeProductCard(p), 12, i == all.size() - 1);
         }
         featuredRow.revalidate();
         featuredRow.repaint();
@@ -960,6 +956,25 @@ public class DashboardGUI extends JFrame {
         return null;
     }
 
+    private JPanel makeFlexRow(int hgap, int vgap, int padT, int padB, int padLR) {
+        JPanel row = new JPanel(new GridBagLayout());
+        row.setOpaque(false);
+        row.setBorder(BorderFactory.createEmptyBorder(padT, padLR, padB, padLR));
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        return row;
+    }
+
+    private void flexAdd(JPanel row, JPanel card, int hgap, boolean isLast) {
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.gridy = 0;
+        gc.fill = GridBagConstraints.BOTH;
+        gc.weightx = 1;
+        gc.weighty = 1;
+        gc.insets = new Insets(0, 0, 0, isLast ? 0 : hgap);
+        row.add(card, gc);
+    }
+
     private void loadRecentBuildCards() {
         recentBuildsRow.removeAll();
         List<Build> recent = buildDAO.getRecentBuilds(5);
@@ -975,9 +990,8 @@ public class DashboardGUI extends JFrame {
             recentBuildsRow.revalidate();
             return;
         }
-        for (Build b : recent) {
-            recentBuildsRow.add(makeBuildCard(b));
-            recentBuildsRow.add(Box.createHorizontalStrut(14));
+        for (int i = 0; i < recent.size(); i++) {
+            flexAdd(recentBuildsRow, makeBuildCard(recent.get(i)), 12, i == recent.size() - 1);
         }
         recentBuildsRow.revalidate();
         recentBuildsRow.repaint();
@@ -990,6 +1004,7 @@ public class DashboardGUI extends JFrame {
             new Components.RoundedBorder(Theme.BORDER, 1, Theme.R_MEDIUM),
             BorderFactory.createEmptyBorder(14, 16, 14, 16)
         ));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         card.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent e) { showView("BUILDS"); }
@@ -997,9 +1012,11 @@ public class DashboardGUI extends JFrame {
 
         JPanel head = new JPanel(new BorderLayout());
         head.setOpaque(false);
+        head.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
         JLabel name = new JLabel(b.getName());
         name.setFont(Theme.bold(13));
         name.setForeground(Theme.TEXT);
+        name.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
         head.add(name, BorderLayout.NORTH);
         String dateStr = b.getCreatedAt() != null
             ? b.getCreatedAt().format(DateTimeFormatter.ofPattern("MMM d  ·  HH:mm"))
@@ -1049,7 +1066,7 @@ public class DashboardGUI extends JFrame {
         price.setFont(Theme.mono(12));
         price.setForeground(Theme.ACCENT);
         totals.add(price, BorderLayout.WEST);
-        JLabel score = new JLabel("★ " + b.getTotalScore());
+        JLabel score = new JLabel(b.getTotalScore() + " pts");
         score.setFont(Theme.mono(11));
         score.setForeground(Theme.VIOLET);
         score.setHorizontalAlignment(SwingConstants.RIGHT);
