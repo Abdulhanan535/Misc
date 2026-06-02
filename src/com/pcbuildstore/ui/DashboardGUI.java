@@ -1,5 +1,8 @@
 package com.pcbuildstore.ui;
 
+import com.pcbuildstore.chat.ChatConfig;
+import com.pcbuildstore.chat.ChatService;
+import com.pcbuildstore.chat.ChatSettingsDialog;
 import com.pcbuildstore.dao.BillDAO;
 import com.pcbuildstore.dao.BuildDAO;
 import com.pcbuildstore.dao.PartDAO;
@@ -52,6 +55,17 @@ public class DashboardGUI extends JFrame {
     private BillingGUI billingGUI;
     private ReportGUI reportGUI;
 
+    private final ChatConfig chatConfig = ChatConfig.load();
+    private ChatService chatService;
+    private final java.util.List<ChatService.Message> chatHistory = new java.util.ArrayList<>();
+    private final java.util.concurrent.atomic.AtomicBoolean chatCancel = new java.util.concurrent.atomic.AtomicBoolean(false);
+    private JPanel chatMessagesWrap;
+    private JScrollPane chatMsgScroll;
+    private JTextField chatInput;
+    private JButton chatSendBtn;
+    private JLabel chatStatusDot;
+    private JLabel chatStatusText;
+
     private static final String[][] NAV = {
         {"DASH",    "Dashboard"},
         {"BUILDS",  "Build Configurator"},
@@ -81,6 +95,10 @@ public class DashboardGUI extends JFrame {
         gpuUpgradesGUI   = new GPUUpgradesGUI(this);
         billingGUI       = new BillingGUI(this);
         reportGUI        = new ReportGUI();
+
+        if (chatConfig.isConfigured()) {
+            chatService = new ChatService(chatConfig);
+        }
 
         content.add(buildCatalogGUI, "BUILDS");
         content.add(gpuUpgradesGUI,  "GPU");
@@ -165,9 +183,19 @@ public class DashboardGUI extends JFrame {
         JPanel side = createChatBotPanel();
         view.add(side, BorderLayout.WEST);
 
-        JPanel inner = new JPanel();
+        JPanel inner = new JPanel() {
+            @Override
+            public Dimension getPreferredSize() {
+                Dimension d = super.getPreferredSize();
+                if (getParent() instanceof JViewport vp) {
+                    d.width = vp.getExtentSize().width;
+                }
+                return d;
+            }
+        };
         inner.setLayout(new BoxLayout(inner, BoxLayout.Y_AXIS));
         inner.setBackground(Theme.BG);
+        inner.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         inner.add(hero());
         inner.add(createStatsRow());
@@ -176,23 +204,23 @@ public class DashboardGUI extends JFrame {
         inner.add(Components.vSpacer(14));
         inner.add(sectionTitle("Featured parts", "Hand-picked from the catalog"));
         inner.add(Components.vSpacer(10));
-        featuredRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        featuredRow = new JPanel(new GridLayout(1, 5, 12, 0));
         featuredRow.setOpaque(false);
-        featuredRow.setBorder(BorderFactory.createEmptyBorder(0, 32, 0, 36));
+        featuredRow.setBorder(BorderFactory.createEmptyBorder(0, 24, 0, 24));
         featuredRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         inner.add(featuredRow);
         inner.add(Components.vSpacer(20));
         inner.add(sectionTitle("Recent builds", "Your last 5 saved builds"));
         inner.add(Components.vSpacer(10));
-        recentBuildsRow = new JPanel();
-        recentBuildsRow.setLayout(new BoxLayout(recentBuildsRow, BoxLayout.X_AXIS));
+        recentBuildsRow = new JPanel(new GridLayout(1, 5, 12, 0));
         recentBuildsRow.setOpaque(false);
-        recentBuildsRow.setBorder(BorderFactory.createEmptyBorder(0, 32, 18, 36));
+        recentBuildsRow.setBorder(BorderFactory.createEmptyBorder(0, 24, 18, 24));
         recentBuildsRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         inner.add(recentBuildsRow);
         inner.add(Box.createVerticalGlue());
 
         JScrollPane scroll = new JScrollPane(inner);
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         Components.applyDarkScrollbar(scroll);
         view.add(scroll, BorderLayout.CENTER);
         return view;
@@ -284,8 +312,8 @@ public class DashboardGUI extends JFrame {
     private JPanel createChatBotPanel() {
         JPanel side = new JPanel(new BorderLayout());
         side.setBackground(Theme.SIDEBAR);
-        side.setPreferredSize(new Dimension(300, 0));
-        side.setMinimumSize(new Dimension(280, 0));
+        side.setPreferredSize(new Dimension(250, 0));
+        side.setMinimumSize(new Dimension(230, 0));
         side.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, Theme.BORDER));
 
         JPanel header = new JPanel(new BorderLayout(8, 0));
@@ -298,22 +326,55 @@ public class DashboardGUI extends JFrame {
         titleRow.setOpaque(false);
         titleRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel dot = Components.dot(Theme.ACCENT, 8);
-        titleRow.add(dot);
+        chatStatusDot = Components.dot(Theme.TEXT_3, 8);
+        titleRow.add(chatStatusDot);
         titleRow.add(Box.createHorizontalStrut(8));
         JLabel ttl = new JLabel("PC ASSISTANT");
         ttl.setFont(Theme.bold(10));
         ttl.setForeground(Theme.TEXT);
         titleRow.add(ttl);
         titleRow.add(Box.createHorizontalGlue());
-        JLabel live = new JLabel("ONLINE");
-        live.setFont(Theme.medium(8));
-        live.setForeground(Theme.ACCENT);
-        titleRow.add(live);
-        titleRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
+
+        JButton gear = new JButton("⚙") {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                boolean hov = Boolean.TRUE.equals(getClientProperty("hover"));
+                if (hov) {
+                    g2.setColor(Theme.SURFACE_2);
+                    g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 4, 4));
+                }
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        gear.setContentAreaFilled(false);
+        gear.setBorderPainted(false);
+        gear.setFocusPainted(false);
+        gear.setOpaque(false);
+        gear.setFont(Theme.regular(13));
+        gear.setForeground(Theme.TEXT_3);
+        gear.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        gear.setPreferredSize(new Dimension(22, 22));
+        gear.setMaximumSize(new Dimension(22, 22));
+        gear.setToolTipText("Chat settings");
+        gear.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) { gear.putClientProperty("hover", true); gear.repaint(); }
+            public void mouseExited(MouseEvent e)  { gear.putClientProperty("hover", false); gear.repaint(); }
+        });
+        gear.addActionListener(e -> openChatSettings());
+        titleRow.add(gear);
+        titleRow.add(Box.createHorizontalStrut(8));
+
+        chatStatusText = new JLabel(chatConfig.isConfigured() ? "ONLINE" : "SETUP");
+        chatStatusText.setFont(Theme.medium(8));
+        chatStatusText.setForeground(chatConfig.isConfigured() ? Theme.ACCENT : Theme.WARN);
+        titleRow.add(chatStatusText);
+        titleRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
         header.add(titleRow, BorderLayout.NORTH);
 
-        JLabel sub = new JLabel("Ask about parts, builds, prices");
+        JLabel sub = new JLabel(chatConfig.isConfigured() ? "Ask about parts, builds, prices" : "Click ⚙ to connect a model");
         sub.setFont(Theme.regular(10));
         sub.setForeground(Theme.TEXT_3);
         sub.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
@@ -321,20 +382,24 @@ public class DashboardGUI extends JFrame {
 
         side.add(header, BorderLayout.NORTH);
 
-        JPanel messagesWrap = new JPanel();
-        messagesWrap.setLayout(new BoxLayout(messagesWrap, BoxLayout.Y_AXIS));
-        messagesWrap.setBackground(Theme.SIDEBAR);
-        messagesWrap.setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
+        chatMessagesWrap = new JPanel();
+        chatMessagesWrap.setLayout(new BoxLayout(chatMessagesWrap, BoxLayout.Y_AXIS));
+        chatMessagesWrap.setBackground(Theme.SIDEBAR);
+        chatMessagesWrap.setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
 
-        addBotMessage(messagesWrap, "Hi! I'm PC Assistant. Ask me about parts, compatibility, prices, or save a build.");
-        addBotMessage(messagesWrap, "Try: \"best CPU under 50k\" or \"help me pick a GPU\".");
+        addBotMessage(chatMessagesWrap, "Hi! I'm PC Assistant.");
+        if (chatConfig.isConfigured()) {
+            addBotMessage(chatMessagesWrap, "Ask me about parts, compatibility, prices, or saving a build.");
+        } else {
+            addBotMessage(chatMessagesWrap, "Click the ⚙ icon to connect an OpenAI-compatible /v1 endpoint.");
+        }
 
-        JScrollPane msgScroll = new JScrollPane(messagesWrap);
-        msgScroll.setOpaque(false);
-        msgScroll.getViewport().setOpaque(false);
-        Components.applyDarkScrollbar(msgScroll);
-        msgScroll.setBorder(BorderFactory.createEmptyBorder());
-        side.add(msgScroll, BorderLayout.CENTER);
+        chatMsgScroll = new JScrollPane(chatMessagesWrap);
+        chatMsgScroll.setOpaque(false);
+        chatMsgScroll.getViewport().setOpaque(false);
+        Components.applyDarkScrollbar(chatMsgScroll);
+        chatMsgScroll.setBorder(BorderFactory.createEmptyBorder());
+        side.add(chatMsgScroll, BorderLayout.CENTER);
 
         JPanel inputBar = new JPanel(new BorderLayout(8, 0));
         inputBar.setBackground(Theme.SIDEBAR);
@@ -343,40 +408,18 @@ public class DashboardGUI extends JFrame {
             BorderFactory.createEmptyBorder(12, 12, 12, 12)
         ));
 
-        JTextField input = new JTextField();
-        input.setFont(Theme.regular(11));
-        input.setForeground(Theme.TEXT);
-        input.setCaretColor(Theme.ACCENT);
-        input.setBackground(Theme.SURFACE_2);
-        input.setBorder(BorderFactory.createCompoundBorder(
+        chatInput = new JTextField();
+        chatInput.setFont(Theme.regular(11));
+        chatInput.setForeground(Theme.TEXT);
+        chatInput.setCaretColor(Theme.ACCENT);
+        chatInput.setBackground(Theme.SURFACE_2);
+        chatInput.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(Theme.BORDER_HARD, 1),
             BorderFactory.createEmptyBorder(8, 10, 8, 10)
         ));
-        input.putClientProperty("JTextField.placeholderText", "Type a question...");
-        input.addActionListener(e -> {
-            String text = input.getText().trim();
-            if (text.isEmpty()) return;
-            addUserMessage(messagesWrap, text);
-            input.setText("");
-            String reply = botReply(text);
-            javax.swing.Timer t = new javax.swing.Timer(450, ev -> {
-                addBotMessage(messagesWrap, reply);
-                messagesWrap.revalidate();
-                javax.swing.SwingUtilities.invokeLater(() -> {
-                    JScrollBar bar = msgScroll.getVerticalScrollBar();
-                    bar.setValue(bar.getMaximum());
-                });
-            });
-            t.setRepeats(false);
-            t.start();
-            messagesWrap.revalidate();
-            javax.swing.SwingUtilities.invokeLater(() -> {
-                JScrollBar bar = msgScroll.getVerticalScrollBar();
-                bar.setValue(bar.getMaximum());
-            });
-        });
+        chatInput.addActionListener(e -> sendChatMessage());
 
-        JButton send = new JButton("SEND") {
+        chatSendBtn = new JButton("SEND") {
             @Override
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
@@ -388,47 +431,117 @@ public class DashboardGUI extends JFrame {
                 super.paintComponent(g);
             }
         };
-        send.setContentAreaFilled(false);
-        send.setBorderPainted(false);
-        send.setFocusPainted(false);
-        send.setOpaque(false);
-        send.setFont(Theme.bold(9));
-        send.setForeground(Theme.TEXT_INV);
-        send.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        send.setPreferredSize(new Dimension(64, 34));
-        send.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
-        send.addMouseListener(new MouseAdapter() {
-            public void mouseEntered(MouseEvent e) { send.putClientProperty("hover", true); send.repaint(); }
-            public void mouseExited(MouseEvent e)  { send.putClientProperty("hover", false); send.repaint(); }
+        chatSendBtn.setContentAreaFilled(false);
+        chatSendBtn.setBorderPainted(false);
+        chatSendBtn.setFocusPainted(false);
+        chatSendBtn.setOpaque(false);
+        chatSendBtn.setFont(Theme.bold(9));
+        chatSendBtn.setForeground(Theme.TEXT_INV);
+        chatSendBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        chatSendBtn.setPreferredSize(new Dimension(64, 34));
+        chatSendBtn.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+        chatSendBtn.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) { chatSendBtn.putClientProperty("hover", true); chatSendBtn.repaint(); }
+            public void mouseExited(MouseEvent e)  { chatSendBtn.putClientProperty("hover", false); chatSendBtn.repaint(); }
         });
-        send.addActionListener(e -> {
-            String text = input.getText().trim();
-            if (text.isEmpty()) return;
-            addUserMessage(messagesWrap, text);
-            input.setText("");
-            String reply = botReply(text);
-            javax.swing.Timer t = new javax.swing.Timer(450, ev -> {
-                addBotMessage(messagesWrap, reply);
-                messagesWrap.revalidate();
-                javax.swing.SwingUtilities.invokeLater(() -> {
-                    JScrollBar bar = msgScroll.getVerticalScrollBar();
-                    bar.setValue(bar.getMaximum());
-                });
-            });
-            t.setRepeats(false);
-            t.start();
-            messagesWrap.revalidate();
-            javax.swing.SwingUtilities.invokeLater(() -> {
-                JScrollBar bar = msgScroll.getVerticalScrollBar();
-                bar.setValue(bar.getMaximum());
-            });
-        });
+        chatSendBtn.addActionListener(e -> sendChatMessage());
 
-        inputBar.add(input, BorderLayout.CENTER);
-        inputBar.add(send, BorderLayout.EAST);
+        inputBar.add(chatInput, BorderLayout.CENTER);
+        inputBar.add(chatSendBtn, BorderLayout.EAST);
         side.add(inputBar, BorderLayout.SOUTH);
 
         return side;
+    }
+
+    private void openChatSettings() {
+        ChatSettingsDialog dlg = new ChatSettingsDialog(this, chatConfig);
+        dlg.setVisible(true);
+        if (dlg.isSaved()) {
+            chatService = new ChatService(chatConfig);
+            chatHistory.clear();
+            chatMessagesWrap.removeAll();
+            chatMessagesWrap.add(Box.createVerticalStrut(0));
+            addBotMessage(chatMessagesWrap, "Settings saved. Connected to " + chatConfig.model + ".");
+            chatMessagesWrap.revalidate();
+            chatMessagesWrap.repaint();
+            if (chatStatusDot != null) {
+                chatStatusDot.setIcon(new javax.swing.ImageIcon(new java.awt.image.BufferedImage(8, 8, java.awt.image.BufferedImage.TYPE_INT_ARGB) {
+                    { Graphics2D g = createGraphics(); g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON); g.setColor(Theme.ACCENT); g.fillOval(0, 0, 8, 8); g.dispose(); }
+                }));
+            }
+            if (chatStatusText != null) {
+                chatStatusText.setText("ONLINE");
+                chatStatusText.setForeground(Theme.ACCENT);
+            }
+        }
+    }
+
+    private void setChatStatus(Color dot, String text) {
+        if (chatStatusDot != null) {
+            chatStatusDot.setIcon(new javax.swing.ImageIcon(new java.awt.image.BufferedImage(8, 8, java.awt.image.BufferedImage.TYPE_INT_ARGB) {
+                { Graphics2D g = createGraphics(); g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON); g.setColor(dot); g.fillOval(0, 0, 8, 8); g.dispose(); }
+            }));
+        }
+        if (chatStatusText != null) {
+            chatStatusText.setText(text);
+        }
+    }
+
+    private void sendChatMessage() {
+        String text = chatInput.getText().trim();
+        if (text.isEmpty()) return;
+        if (!chatConfig.isConfigured()) {
+            addUserMessage(chatMessagesWrap, text);
+            chatInput.setText("");
+            addBotMessage(chatMessagesWrap, "Not connected yet. Click the ⚙ icon to set your base URL, API key, and model.");
+            scrollChatToBottom();
+            return;
+        }
+        addUserMessage(chatMessagesWrap, text);
+        chatInput.setText("");
+        chatInput.setEnabled(false);
+        chatSendBtn.setEnabled(false);
+        setChatStatus(Theme.WARN, "THINKING");
+        JLabel pending = beginBotMessage();
+        StringBuilder acc = new StringBuilder();
+
+        if (chatService == null) chatService = new ChatService(chatConfig);
+        chatHistory.add(new ChatService.Message("user", text));
+        chatCancel.set(false);
+        chatService.chatStream(chatHistory, token -> {
+            SwingUtilities.invokeLater(() -> {
+                acc.append(token);
+                appendToBotMessage(pending, acc.toString());
+                scrollChatToBottom();
+            });
+        }, () -> {
+            SwingUtilities.invokeLater(() -> {
+                chatInput.setEnabled(true);
+                chatSendBtn.setEnabled(true);
+                setChatStatus(Theme.ACCENT, "ONLINE");
+                finalizeBotMessage(pending, acc.toString());
+                String finalText = acc.toString().trim();
+                if (!finalText.isEmpty()) {
+                    chatHistory.add(new ChatService.Message("assistant", finalText));
+                }
+                scrollChatToBottom();
+            });
+        }, err -> {
+            SwingUtilities.invokeLater(() -> {
+                chatInput.setEnabled(true);
+                chatSendBtn.setEnabled(true);
+                setChatStatus(Theme.EMBER, "ERROR");
+                finalizeBotMessage(pending, (acc.length() > 0 ? acc.toString() + "\n\n" : "") + "⚠ " + err);
+            });
+        }, chatCancel);
+        scrollChatToBottom();
+    }
+
+    private void scrollChatToBottom() {
+        SwingUtilities.invokeLater(() -> {
+            JScrollBar bar = chatMsgScroll.getVerticalScrollBar();
+            bar.setValue(bar.getMaximum());
+        });
     }
 
     private void addUserMessage(JPanel wrap, String text) {
@@ -490,6 +603,50 @@ public class DashboardGUI extends JFrame {
         wrap.add(Box.createVerticalStrut(2));
     }
 
+    private JLabel beginBotMessage() {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 4));
+        row.setOpaque(false);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel bubble = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(Theme.SURFACE_2);
+                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 8, 8));
+                g2.setColor(Theme.BORDER);
+                g2.setStroke(new BasicStroke(1));
+                g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, getWidth() - 1, getHeight() - 1, 8, 8));
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        bubble.setOpaque(false);
+        bubble.setLayout(new BorderLayout());
+        bubble.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+        JLabel l = new JLabel("<html><div style='width:220px;color:#F5F5FA'>…</div></html>");
+        l.setFont(Theme.regular(11));
+        l.setForeground(Theme.TEXT);
+        l.setName("bot-streaming");
+        bubble.add(l, BorderLayout.CENTER);
+        bubble.setMaximumSize(new Dimension(260, Integer.MAX_VALUE));
+        row.add(bubble);
+        chatMessagesWrap.add(row);
+        chatMessagesWrap.add(Box.createVerticalStrut(2));
+        chatMessagesWrap.revalidate();
+        return l;
+    }
+
+    private void appendToBotMessage(JLabel l, String text) {
+        l.setText("<html><div style='width:220px;color:#F5F5FA'>" + escape(text) + "</div></html>");
+    }
+
+    private void finalizeBotMessage(JLabel l, String text) {
+        l.setText("<html><div style='width:220px;color:#F5F5FA'>" + escape(text) + "</div></html>");
+        chatMessagesWrap.revalidate();
+        chatMessagesWrap.repaint();
+    }
+
     private String escape(String s) {
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
@@ -499,37 +656,16 @@ public class DashboardGUI extends JFrame {
         if (t.contains("hi") || t.contains("hello") || t.contains("hey")) {
             return "Hey there! What are you building today — gaming, work, or content creation?";
         }
-        if (t.contains("cpu") || t.contains("processor") || t.contains("ryzen") || t.contains("intel")) {
-            return "For CPUs: AMD Ryzen 5 7600 is great for mid-range. Ryzen 7 7700X for high-end. Intel i5-13600K is solid for gaming under 70k PKR.";
-        }
-        if (t.contains("gpu") || t.contains("graphics") || t.contains("rtx") || t.contains("radeon")) {
-            return "GPUs depend on resolution. 1080p: RTX 4060 / RX 7600. 1440p: RTX 4070. 4K: RTX 4080. Open the GPU Upgrades page for comparisons.";
-        }
-        if (t.contains("budget") || t.contains("cheap") || t.contains("under")) {
-            return "Budget build ~150k PKR: Ryzen 5 5600X + RX 6600 + 16GB DDR4 + 500GB NVMe + 550W PSU. Open Build Configurator to start.";
-        }
-        if (t.contains("save") || t.contains("saved build") || t.contains("my build")) {
-            return "To save a build: pick parts in Build Configurator, then click SAVE BUILD in the right panel. Recent builds appear on the dashboard.";
-        }
-        if (t.contains("compatibility") || t.contains("compatible") || t.contains("compat")) {
-            return "Check the Reports tab for compatibility warnings. Score < 70 means a part pairing is risky — usually PSU or socket mismatch.";
-        }
-        if (t.contains("price") || t.contains("cost") || t.contains("pkr")) {
-            return "All prices are in PKR. Revenue stat on the dashboard shows total spend across saved builds.";
-        }
         if (t.contains("help") || t.contains("?")) {
             return "I can help with: CPU picks, GPU recommendations, budget builds, compatibility, saving builds, and pricing. Just ask!";
         }
-        if (t.contains("thank")) {
-            return "Anytime. Happy building!";
-        }
-        return "Got it. Try asking about CPUs, GPUs, budget builds, compatibility, or saving your build.";
+        return "Connect a model via the ⚙ icon to get a real response. For now, try keywords like: cpu, gpu, budget, save, compat, help, hi.";
     }
 
     private JPanel createStatsRow() {
         JPanel wrap = new JPanel(new BorderLayout());
         wrap.setOpaque(false);
-        wrap.setBorder(BorderFactory.createEmptyBorder(16, 36, 0, 36));
+        wrap.setBorder(BorderFactory.createEmptyBorder(16, 24, 0, 24));
         wrap.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JPanel row = new JPanel(new GridBagLayout());
@@ -657,9 +793,6 @@ public class DashboardGUI extends JFrame {
             new Components.RoundedBorder(Theme.BORDER, 1, Theme.R_MEDIUM),
             BorderFactory.createEmptyBorder(12, 12, 12, 12)
         ));
-        card.setPreferredSize(new Dimension(220, 240));
-        card.setMinimumSize(new Dimension(220, 240));
-        card.setMaximumSize(new Dimension(220, 240));
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         card.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent e) {
@@ -670,7 +803,7 @@ public class DashboardGUI extends JFrame {
 
         JPanel imgWrap = new JPanel(new BorderLayout());
         imgWrap.setBackground(Theme.SURFACE_2);
-        imgWrap.setPreferredSize(new Dimension(196, 116));
+        imgWrap.setPreferredSize(new Dimension(160, 116));
         JLabel imgLbl = new JLabel();
         imgLbl.setHorizontalAlignment(SwingConstants.CENTER);
         imgLbl.setVerticalAlignment(SwingConstants.CENTER);
@@ -857,9 +990,6 @@ public class DashboardGUI extends JFrame {
             new Components.RoundedBorder(Theme.BORDER, 1, Theme.R_MEDIUM),
             BorderFactory.createEmptyBorder(14, 16, 14, 16)
         ));
-        card.setPreferredSize(new Dimension(240, 150));
-        card.setMinimumSize(new Dimension(240, 150));
-        card.setMaximumSize(new Dimension(240, 150));
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         card.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent e) { showView("BUILDS"); }
