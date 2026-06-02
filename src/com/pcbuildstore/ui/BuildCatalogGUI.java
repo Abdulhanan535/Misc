@@ -7,382 +7,399 @@ import com.pcbuildstore.models.Build;
 import com.pcbuildstore.models.BuildPart;
 import com.pcbuildstore.models.Category;
 import com.pcbuildstore.models.Part;
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Cursor;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
+import com.pcbuildstore.ui.theme.Components;
+import com.pcbuildstore.ui.theme.Theme;
+import com.pcbuildstore.util.ImageCache;
+
+import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javax.swing.BorderFactory;
-import javax.swing.Box;
-import javax.swing.BoxLayout;
-import javax.swing.JButton;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTable;
-import javax.swing.JTextField;
-import javax.swing.ListSelectionModel;
-import javax.swing.SwingConstants;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.table.JTableHeader;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class BuildCatalogGUI extends JPanel {
-
-    private static final Color BG = DashboardGUI.BG;
-    private static final Color CARD = DashboardGUI.CARD;
-    private static final Color BORDER = DashboardGUI.BORDER;
-    private static final Color TEXT = DashboardGUI.TEXT;
-    private static final Color MUTED = DashboardGUI.MUTED;
-    private static final Color BLUE = DashboardGUI.BLUE;
-    private static final Color MINT = DashboardGUI.MINT;
-    private static final Color EMBER = DashboardGUI.EMBER;
-    private static final Color VIOLET = DashboardGUI.VIOLET;
-    private static final Color INTEL = new Color(0, 113, 197);
-    private static final Color AMD_RED = new Color(237, 28, 36);
-    private static final Color NVIDIA = new Color(118, 185, 0);
-    private static final Color AMD_ORANGE = new Color(240, 120, 0);
 
     private final DashboardGUI dashboard;
     private final PartDAO partDAO = new PartDAO();
     private final BuildDAO buildDAO = new BuildDAO();
     private final CategoryDAO categoryDAO = new CategoryDAO();
 
-    private DefaultTableModel partsModel;
-    private JTable partsTable;
-    private DefaultTableModel buildsModel;
-    private JTable buildsTable;
-    private JTextField searchField;
-    private JLabel countLabel;
-
     private List<Category> categories;
     private int selectedCategoryId = 1;
     private int selectedPartId = -1;
     private int selectedBuildId = -1;
-
     private String selectedSocket = null;
     private String selectedDdrGen = null;
 
-    private JPanel buildSummaryPanel;
+    private JPanel productGrid;
+    private JTextField searchField;
+    private JLabel countLabel;
+
     private JLabel totalPriceLabel;
     private JLabel totalScoreLabel;
-    private Map<Integer, JLabel> partSlotLabels = new HashMap<>();
-    private Map<Integer, Integer> currentBuildParts = new HashMap<>();
+    private final Map<Integer, JLabel> partSlotLabels = new HashMap<>();
+    private final Map<Integer, Integer> currentBuildParts = new HashMap<>();
+    private final Map<Integer, Part> partById = new HashMap<>();
+    private final Map<Integer, ImageIcon> preloadedIcons = new ConcurrentHashMap<>();
+    private SwingWorker<Void, Integer> currentImageLoader;
+
+    private final List<JPanel> categoryTabs = new ArrayList<>();
+    private JPanel buildsStrip;
 
     public BuildCatalogGUI(DashboardGUI dashboard) {
         this.dashboard = dashboard;
         setLayout(new BorderLayout());
-        setBackground(BG);
+        setBackground(Theme.BG);
         categories = categoryDAO.getAllCategories();
         buildUI();
         loadParts();
         loadBuilds();
     }
 
-    private void buildUI() {
-        add(createHeader(), BorderLayout.NORTH);
-        add(createCenterPanel(), BorderLayout.CENTER);
-        add(createRightPanel(), BorderLayout.EAST);
+    public void onShow() { loadParts(); loadBuilds(); }
+
+    public void setCategory(int catId) {
+        selectedCategoryId = catId;
+        for (JPanel tab : categoryTabs) {
+            int id = (int) tab.getClientProperty("catId");
+            tab.putClientProperty("active", id == catId);
+            tab.repaint();
+        }
+        loadParts();
     }
 
-    private JPanel createHeader() {
-        JPanel header = new JPanel();
-        header.setLayout(new BoxLayout(header, BoxLayout.X_AXIS));
-        header.setBackground(BG);
-        header.setBorder(BorderFactory.createEmptyBorder(20, 30, 15, 30));
-        header.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+    private void buildUI() {
+        add(createTopBar(), BorderLayout.NORTH);
+        add(createCenter(), BorderLayout.CENTER);
+    }
 
-        JLabel title = DashboardGUI.label("Build Configurator", TEXT, 28, Font.BOLD);
-        header.add(title);
-        header.add(Box.createHorizontalGlue());
+    private JPanel createTopBar() {
+        JPanel wrap = new JPanel();
+        wrap.setLayout(new BoxLayout(wrap, BoxLayout.Y_AXIS));
+        wrap.setBackground(Theme.SIDEBAR);
+        wrap.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 1, 0, Theme.BORDER),
+            BorderFactory.createEmptyBorder(14, 36, 10, 36)
+        ));
+
+        JPanel row = new JPanel(new BorderLayout());
+        row.setOpaque(false);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        left.setOpaque(false);
+        JLabel title = new JLabel("Build Configurator");
+        title.setFont(Theme.light(22));
+        title.setForeground(Theme.TEXT);
+        left.add(title);
+        row.add(left, BorderLayout.WEST);
+
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        right.setOpaque(false);
+
+        JPanel searchWrap = new JPanel(new BorderLayout());
+        searchWrap.setBackground(Theme.SURFACE_2);
+        searchWrap.setBorder(new Components.RoundedBorder(Theme.BORDER, 1, Theme.R_PILL));
+        searchWrap.setPreferredSize(new Dimension(220, 32));
+
+        JLabel sIcon = new JLabel("  ⌕ ");
+        sIcon.setFont(Theme.regular(12));
+        sIcon.setForeground(Theme.TEXT_3);
+        searchWrap.add(sIcon, BorderLayout.WEST);
 
         searchField = new JTextField();
-        searchField.setPreferredSize(new Dimension(200, 32));
-        searchField.setMaximumSize(new Dimension(200, 32));
-        searchField.setFont(DashboardGUI.font(Font.PLAIN, 12));
-        searchField.setBackground(CARD);
-        searchField.setForeground(TEXT);
-        searchField.setCaretColor(TEXT);
-        searchField.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(BORDER, 1),
-            BorderFactory.createEmptyBorder(5, 10, 5, 10)
-        ));
+        searchField.setOpaque(false);
+        searchField.setFont(Theme.regular(11));
+        searchField.setForeground(Theme.TEXT);
+        searchField.setCaretColor(Theme.TEXT);
+        searchField.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 12));
         searchField.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent e) { filterParts(); }
             public void removeUpdate(DocumentEvent e) { filterParts(); }
             public void changedUpdate(DocumentEvent e) { filterParts(); }
         });
-        header.add(searchField);
-        header.add(Box.createRigidArea(new Dimension(15, 0)));
+        searchWrap.add(searchField, BorderLayout.CENTER);
+        right.add(searchWrap);
+        right.add(Box.createHorizontalStrut(10));
 
-        countLabel = DashboardGUI.label("0 parts", MUTED, 12, Font.PLAIN);
-        header.add(countLabel);
-
-        return header;
+        JButton imageBtn = Components.secondaryButton("Set image");
+        imageBtn.addActionListener(e -> openImageEditor());
+        right.add(imageBtn);
+        row.add(right, BorderLayout.EAST);
+        wrap.add(row);
+        return wrap;
     }
 
-    private JPanel createCenterPanel() {
+    private JPanel createCenter() {
         JPanel center = new JPanel(new BorderLayout());
-        center.setBackground(BG);
-        center.setBorder(BorderFactory.createEmptyBorder(0, 30, 20, 10));
+        center.setBackground(Theme.SIDEBAR);
+        center.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.setBackground(BG);
-
-        JPanel catTabs = createCategoryTabs();
-        topPanel.add(catTabs, BorderLayout.NORTH);
-        topPanel.add(createPartsTablePanel(), BorderLayout.CENTER);
-
-        center.add(topPanel, BorderLayout.CENTER);
-        center.add(createBuildsPanel(), BorderLayout.SOUTH);
-
+        center.add(createCategoryTabs(), BorderLayout.NORTH);
+        center.add(createProductArea(), BorderLayout.CENTER);
+        center.add(createBuildsStrip(), BorderLayout.SOUTH);
         return center;
     }
 
     private JPanel createCategoryTabs() {
-        JPanel tabs = new JPanel();
-        tabs.setLayout(new BoxLayout(tabs, BoxLayout.X_AXIS));
-        tabs.setBackground(BG);
-        tabs.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
+        JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        bar.setBackground(Theme.SIDEBAR);
+        bar.setBorder(BorderFactory.createEmptyBorder(0, 36, 10, 36));
 
         for (Category cat : categories) {
-            JButton btn = new JButton(cat.getName());
-            btn.setFont(DashboardGUI.font(Font.PLAIN, 12));
-            btn.setBackground(CARD);
-            btn.setForeground(MUTED);
-            btn.setBorderPainted(false);
-            btn.setFocusPainted(false);
-            btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            btn.setPreferredSize(new Dimension(100, 32));
-
             final int catId = cat.getCategoryId();
-            btn.addActionListener(e -> {
-                selectedCategoryId = catId;
-                selectedPartId = -1;
-                loadParts();
-                highlightTab(tabs, btn);
+            JPanel tab = new JPanel() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    super.paintComponent(g);
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    boolean active = Boolean.TRUE.equals(getClientProperty("active"));
+                    g2.setColor(active ? Theme.ACCENT : Theme.SURFACE);
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), Theme.R_PILL, Theme.R_PILL);
+                    g2.dispose();
+                    super.paintComponent(g);
+                }
+            };
+            tab.setOpaque(false);
+            tab.setLayout(new FlowLayout(FlowLayout.CENTER, 0, 0));
+            tab.setPreferredSize(new Dimension(110, 32));
+            tab.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            tab.putClientProperty("catId", catId);
+            tab.putClientProperty("active", catId == selectedCategoryId);
+            JLabel lbl = new JLabel(cat.getName());
+            lbl.setFont(Theme.medium(11));
+            lbl.setHorizontalAlignment(SwingConstants.CENTER);
+            tab.add(lbl);
+            tab.addMouseListener(new MouseAdapter() {
+                public void mouseClicked(MouseEvent e) {
+                    selectedCategoryId = catId;
+                    selectedPartId = -1;
+                    for (JPanel t : categoryTabs) t.repaint();
+                    loadParts();
+                }
             });
-
-            if (cat.getCategoryId() == selectedCategoryId) {
-                btn.setBackground(BLUE);
-                btn.setForeground(TEXT);
-            }
-
-            tabs.add(btn);
-            tabs.add(Box.createRigidArea(new Dimension(5, 0)));
+            categoryTabs.add(tab);
+            bar.add(tab);
         }
-
-        return tabs;
+        return bar;
     }
 
-    private void highlightTab(JPanel tabs, JButton active) {
-        for (Component c : tabs.getComponents()) {
-            if (c instanceof JButton) {
-                JButton b = (JButton) c;
-                if (b == active) {
-                    b.setBackground(BLUE);
-                    b.setForeground(TEXT);
-                } else {
-                    b.setBackground(CARD);
-                    b.setForeground(MUTED);
-                }
-            }
-        }
-    }
+    private JPanel createProductArea() {
+        JPanel area = new JPanel(new BorderLayout(0, 0));
+        area.setBackground(Theme.SIDEBAR);
 
-    private JScrollPane createPartsTablePanel() {
-        String[] cols = {"ID", "Brand", "Name", "Price (PKR)", "Score", "Details"};
-        partsModel = new DefaultTableModel(cols, 0) {
-            public boolean isCellEditable(int r, int c) { return false; }
-        };
-        partsTable = new JTable(partsModel);
-        styleTable(partsTable);
+        JPanel leftPanel = new JPanel(new BorderLayout(0, 12));
+        leftPanel.setBackground(Theme.SIDEBAR);
 
-        partsTable.getSelectionModel().addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) {
-                int row = partsTable.getSelectedRow();
-                if (row >= 0) {
-                    selectedPartId = (int) partsModel.getValueAt(row, 0);
-                }
-            }
-        });
+        countLabel = new JLabel("0 parts");
+        countLabel.setFont(Theme.regular(11));
+        countLabel.setForeground(Theme.TEXT_3);
+        countLabel.setBorder(BorderFactory.createEmptyBorder(0, 36, 8, 0));
+        leftPanel.add(countLabel, BorderLayout.NORTH);
 
-        partsTable.addMouseListener(new MouseAdapter() {
-            public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2) {
-                    addPartToBuild();
-                }
-            }
-        });
+        productGrid = new JPanel();
+        productGrid.setLayout(new GridLayout(0, 3, 12, 12));
+        productGrid.setBackground(Theme.SIDEBAR);
+        productGrid.setBorder(BorderFactory.createEmptyBorder(0, 36, 16, 0));
 
-        JScrollPane scroll = new JScrollPane(partsTable);
-        scroll.setBorder(BorderFactory.createLineBorder(BORDER, 1));
-        scroll.getViewport().setBackground(CARD);
-        return scroll;
-    }
+        JScrollPane scroll = new JScrollPane(productGrid);
+        scroll.setBorder(null);
+        scroll.getViewport().setBackground(Theme.SIDEBAR);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        leftPanel.add(scroll, BorderLayout.CENTER);
+        area.add(leftPanel, BorderLayout.CENTER);
 
-    private JPanel createBuildsPanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(BG);
-        panel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
-        panel.setPreferredSize(new Dimension(0, 200));
-
-        JLabel label = DashboardGUI.label("Saved Builds", TEXT, 16, Font.BOLD);
-        panel.add(label, BorderLayout.NORTH);
-
-        String[] cols = {"ID", "Name", "Price (PKR)", "Score", "Parts", "Created"};
-        buildsModel = new DefaultTableModel(cols, 0) {
-            public boolean isCellEditable(int r, int c) { return false; }
-        };
-        buildsTable = new JTable(buildsModel);
-        styleTable(buildsTable);
-
-        buildsTable.getSelectionModel().addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) {
-                int row = buildsTable.getSelectedRow();
-                if (row >= 0) {
-                    selectedBuildId = (int) buildsModel.getValueAt(row, 0);
-                }
-            }
-        });
-
-        JScrollPane scroll = new JScrollPane(buildsTable);
-        scroll.setBorder(BorderFactory.createLineBorder(BORDER, 1));
-        scroll.getViewport().setBackground(CARD);
-        panel.add(scroll, BorderLayout.CENTER);
-
-        JPanel btnRow = new JPanel();
-        btnRow.setLayout(new BoxLayout(btnRow, BoxLayout.X_AXIS));
-        btnRow.setBackground(BG);
-        btnRow.setBorder(BorderFactory.createEmptyBorder(8, 0, 0, 0));
-
-        JButton loadBtn = accentButton("Load Build", BLUE);
-        loadBtn.addActionListener(e -> loadSelectedBuild());
-        JButton deleteBtn = accentButton("Delete Build", EMBER);
-        deleteBtn.addActionListener(e -> deleteSelectedBuild());
-
-        btnRow.add(loadBtn);
-        btnRow.add(Box.createRigidArea(new Dimension(10, 0)));
-        btnRow.add(deleteBtn);
-        btnRow.add(Box.createHorizontalGlue());
-
-        panel.add(btnRow, BorderLayout.SOUTH);
-
-        return panel;
+        area.add(createRightPanel(), BorderLayout.EAST);
+        return area;
     }
 
     private JPanel createRightPanel() {
         JPanel right = new JPanel();
         right.setLayout(new BoxLayout(right, BoxLayout.Y_AXIS));
-        right.setBackground(BG);
-        right.setPreferredSize(new Dimension(280, 0));
+        right.setBackground(Theme.SURFACE);
+        right.setPreferredSize(new Dimension(260, 0));
+        right.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, Theme.BORDER));
         right.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(0, 1, 0, 0, BORDER),
-            BorderFactory.createEmptyBorder(20, 15, 20, 15)
+            BorderFactory.createMatteBorder(0, 1, 0, 0, Theme.BORDER),
+            BorderFactory.createEmptyBorder(16, 18, 16, 18)
         ));
 
-        JLabel title = DashboardGUI.label("Current Build", TEXT, 16, Font.BOLD);
+        JLabel ey = Components.eyebrow("YOUR  BUILD");
+        ey.setAlignmentX(Component.LEFT_ALIGNMENT);
+        right.add(ey);
+        right.add(Components.vSpacer(4));
+        JLabel title = new JLabel("Current build");
+        title.setFont(Theme.bold(13));
+        title.setForeground(Theme.TEXT);
         title.setAlignmentX(Component.LEFT_ALIGNMENT);
         right.add(title);
-        right.add(Box.createRigidArea(new Dimension(0, 15)));
+        right.add(Components.vSpacer(10));
 
-        String[] slotNames = {"CPU", "GPU", "RAM", "Storage", "PSU"};
+        String[] slotNames = {"Processor", "Graphics", "Memory", "Storage", "Power"};
         int[] slotIds = {1, 2, 3, 4, 5};
-        Color[] slotColors = {BLUE, NVIDIA, MINT, VIOLET, EMBER};
+        Color[] slotColors = {Theme.INTEL_BLUE, Theme.NVIDIA_GRN, Theme.INFO, Theme.VIOLET, Theme.EMBER};
 
         for (int i = 0; i < slotNames.length; i++) {
-            JPanel slot = createPartSlot(slotNames[i], slotIds[i], slotColors[i]);
-            slot.setAlignmentX(Component.LEFT_ALIGNMENT);
-            right.add(slot);
-            right.add(Box.createRigidArea(new Dimension(0, 8)));
+            right.add(createSlot(slotNames[i], slotIds[i], slotColors[i]));
+            right.add(Components.vSpacer(4));
         }
 
-        right.add(Box.createRigidArea(new Dimension(0, 15)));
+        right.add(Components.vSpacer(6));
+        right.add(createTotalsCard());
+        right.add(Components.vSpacer(8));
 
-        JPanel totals = new JPanel(new GridBagLayout());
-        totals.setBackground(CARD);
-        totals.setAlignmentX(Component.LEFT_ALIGNMENT);
-        totals.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(BORDER, 1),
-            BorderFactory.createEmptyBorder(12, 12, 12, 12)
-        ));
-        GridBagConstraints gc = new GridBagConstraints();
-        gc.insets = new Insets(4, 4, 4, 4);
-        gc.anchor = GridBagConstraints.WEST;
-
-        gc.gridx = 0; gc.gridy = 0;
-        totals.add(DashboardGUI.label("Total Price:", MUTED, 12, Font.PLAIN), gc);
-        gc.gridx = 1;
-        totalPriceLabel = DashboardGUI.label("PKR 0", MINT, 14, Font.BOLD);
-        totals.add(totalPriceLabel, gc);
-
-        gc.gridx = 0; gc.gridy = 1;
-        totals.add(DashboardGUI.label("Total Score:", MUTED, 12, Font.PLAIN), gc);
-        gc.gridx = 1;
-        totalScoreLabel = DashboardGUI.label("0", VIOLET, 14, Font.BOLD);
-        totals.add(totalScoreLabel, gc);
-
-        right.add(totals);
-        right.add(Box.createRigidArea(new Dimension(0, 15)));
-
-        JButton addBtn = accentButton("Add Selected Part", MINT);
+        JButton addBtn = Components.primaryButton("Add selected part");
         addBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        addBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        addBtn.setFont(Theme.medium(10));
         addBtn.addActionListener(e -> addPartToBuild());
         right.add(addBtn);
-        right.add(Box.createRigidArea(new Dimension(0, 8)));
+        right.add(Components.vSpacer(6));
 
-        JButton clearBtn = accentButton("Clear Build", EMBER);
-        clearBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
-        clearBtn.addActionListener(e -> clearBuild());
-        right.add(clearBtn);
-        right.add(Box.createRigidArea(new Dimension(0, 8)));
-
-        JButton saveBtn = accentButton("Save Build", BLUE);
+        JButton saveBtn = Components.saleButton("Save build");
         saveBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        saveBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        saveBtn.setFont(Theme.medium(10));
         saveBtn.addActionListener(e -> saveBuild());
         right.add(saveBtn);
-        right.add(Box.createVerticalGlue());
+        right.add(Components.vSpacer(6));
 
+        JButton clearBtn = Components.ghostButton("Clear");
+        clearBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        clearBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+        clearBtn.setFont(Theme.medium(10));
+        clearBtn.addActionListener(e -> clearBuild());
+        right.add(clearBtn);
+        right.add(Box.createVerticalGlue());
         return right;
     }
 
-    private JPanel createPartSlot(String name, int categoryId, Color accent) {
-        JPanel slot = new JPanel(new BorderLayout());
-        slot.setBackground(CARD);
-        slot.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(BORDER, 1),
-            BorderFactory.createEmptyBorder(8, 10, 8, 10)
-        ));
-        slot.setMaximumSize(new Dimension(Integer.MAX_VALUE, 45));
+    private JPanel createSlot(String name, int catId, Color accent) {
+        JPanel slot = new JPanel(new BorderLayout(8, 0));
+        slot.setBackground(Theme.SURFACE_2);
+        slot.setBorder(new Components.RoundedBorder(Theme.BORDER_SOFT, 1, Theme.R_SMALL));
+        slot.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
 
-        JLabel catLabel = DashboardGUI.label(name, accent, 11, Font.BOLD);
-        slot.add(catLabel, BorderLayout.NORTH);
+        JLabel dot = Components.dot(accent, 7);
+        dot.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
+        slot.add(dot, BorderLayout.WEST);
 
-        JLabel partLabel = DashboardGUI.label("Not selected", MUTED, 11, Font.PLAIN);
-        slot.add(partLabel, BorderLayout.CENTER);
+        JPanel textCol = new JPanel();
+        textCol.setLayout(new BoxLayout(textCol, BoxLayout.Y_AXIS));
+        textCol.setOpaque(false);
+        textCol.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 6));
 
-        partSlotLabels.put(categoryId, partLabel);
+        JLabel cat = new JLabel(name.toUpperCase());
+        cat.setFont(Theme.medium(8));
+        cat.setForeground(Theme.TEXT_3);
+        cat.setAlignmentX(Component.LEFT_ALIGNMENT);
+        textCol.add(cat);
+        JLabel part = new JLabel("Not selected");
+        part.setFont(Theme.regular(10));
+        part.setForeground(Theme.TEXT_3);
+        part.setAlignmentX(Component.LEFT_ALIGNMENT);
+        textCol.add(part);
+        partSlotLabels.put(catId, part);
+        slot.add(textCol, BorderLayout.CENTER);
 
+        JLabel check = new JLabel("＋");
+        check.setFont(Theme.light(16));
+        check.setForeground(Theme.TEXT_3);
+        check.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 8));
+        slot.add(check, BorderLayout.EAST);
         return slot;
     }
 
-    private void loadParts() {
-        partsModel.setRowCount(0);
-        List<Part> parts;
+    private JPanel createTotalsCard() {
+        JPanel card = new JPanel(new BorderLayout(0, 4));
+        card.setBackground(Theme.SURFACE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+            new Components.RoundedBorder(Theme.BORDER, 1, Theme.R_MEDIUM),
+            BorderFactory.createEmptyBorder(10, 12, 10, 12)
+        ));
+        card.setAlignmentX(Component.LEFT_ALIGNMENT);
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 68));
 
+        JPanel priceRow = new JPanel(new BorderLayout());
+        priceRow.setOpaque(false);
+        JLabel pl = new JLabel("TOTAL");
+        pl.setFont(Theme.medium(8));
+        pl.setForeground(Theme.TEXT_3);
+        totalPriceLabel = new JLabel("PKR 0");
+        totalPriceLabel.setFont(Theme.mono(16));
+        totalPriceLabel.setForeground(Theme.ACCENT);
+        priceRow.add(pl, BorderLayout.NORTH);
+        priceRow.add(totalPriceLabel, BorderLayout.CENTER);
+
+        JPanel scoreRow = new JPanel(new BorderLayout());
+        scoreRow.setOpaque(false);
+        JLabel sl = new JLabel("SCORE");
+        sl.setFont(Theme.medium(8));
+        sl.setForeground(Theme.TEXT_3);
+        totalScoreLabel = new JLabel("0");
+        totalScoreLabel.setFont(Theme.mono(13));
+        totalScoreLabel.setForeground(Theme.VIOLET);
+        scoreRow.add(sl, BorderLayout.NORTH);
+        scoreRow.add(totalScoreLabel, BorderLayout.CENTER);
+
+        JPanel rows = new JPanel();
+        rows.setLayout(new BoxLayout(rows, BoxLayout.Y_AXIS));
+        rows.setOpaque(false);
+        priceRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        scoreRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        rows.add(priceRow);
+        rows.add(Box.createVerticalStrut(2));
+        rows.add(scoreRow);
+        card.add(rows, BorderLayout.CENTER);
+        return card;
+    }
+
+    private JPanel createBuildsStrip() {
+        JPanel strip = new JPanel(new BorderLayout());
+        strip.setBackground(Theme.SURFACE);
+        strip.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(1, 0, 0, 0, Theme.BORDER),
+            BorderFactory.createEmptyBorder(10, 36, 10, 36)
+        ));
+        strip.setPreferredSize(new Dimension(0, 72));
+
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+        JLabel t = new JLabel("Saved builds");
+        t.setFont(Theme.medium(10));
+        t.setForeground(Theme.TEXT_3);
+        header.add(t, BorderLayout.WEST);
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        right.setOpaque(false);
+        JButton loadBtn = Components.ghostButton("Load");
+        loadBtn.setFont(Theme.medium(9));
+        loadBtn.addActionListener(e -> loadSelectedBuild());
+        JButton delBtn = Components.ghostButton("Delete");
+        delBtn.setFont(Theme.medium(9));
+        delBtn.setForeground(Theme.SALE);
+        delBtn.addActionListener(e -> deleteSelectedBuild());
+        right.add(loadBtn);
+        right.add(delBtn);
+        header.add(right, BorderLayout.EAST);
+        strip.add(header, BorderLayout.NORTH);
+
+        buildsStrip = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        buildsStrip.setOpaque(false);
+        strip.add(buildsStrip, BorderLayout.CENTER);
+        return strip;
+    }
+
+    private void loadParts() {
+        productGrid.removeAll();
+        partById.clear();
+        List<Part> parts;
         if (selectedCategoryId == 3 && selectedDdrGen != null) {
             parts = partDAO.getCompatibleParts(selectedSocket, selectedDdrGen);
         } else {
@@ -390,47 +407,154 @@ public class BuildCatalogGUI extends JPanel {
         }
 
         for (Part p : parts) {
-            String details = getPartDetails(p);
-            partsModel.addRow(new Object[]{
-                p.getPartId(), p.getBrand(), p.getName(),
-                p.getPrice(), p.getPerformanceScore(), details
-            });
+            partById.put(p.getPartId(), p);
+            productGrid.add(makeProductCard(p));
         }
         countLabel.setText(parts.size() + " parts");
-    }
-
-    private String getPartDetails(Part p) {
-        switch (p.getCategoryId()) {
-            case 1: return p.getSocketType() + " | " + p.getDdrGeneration() + " | " + p.getCoreCount() + "C | " + p.getClockSpeed();
-            case 2: return p.getVram() + " VRAM";
-            case 3: return p.getDdrGeneration() + " | " + p.getMemorySpeed() + " | " + p.getCapacity();
-            case 4: return p.getCapacity() + " | " + p.getReadSpeed();
-            case 5: return p.getWattage() + "W | " + p.getEfficiency();
-            default: return "";
-        }
+        productGrid.revalidate();
+        productGrid.repaint();
+        loadImagesAsync();
     }
 
     private void filterParts() {
         String query = searchField.getText().trim().toLowerCase();
-        partsModel.setRowCount(0);
-
+        productGrid.removeAll();
+        partById.clear();
         List<Part> parts;
         if (selectedCategoryId == 3 && selectedDdrGen != null) {
             parts = partDAO.getCompatibleParts(selectedSocket, selectedDdrGen);
         } else {
             parts = partDAO.getPartsByCategory(selectedCategoryId);
         }
-
         for (Part p : parts) {
             if (query.isEmpty() || p.getName().toLowerCase().contains(query)
                     || p.getBrand().toLowerCase().contains(query)) {
-                partsModel.addRow(new Object[]{
-                    p.getPartId(), p.getBrand(), p.getName(),
-                    p.getPrice(), p.getPerformanceScore(), getPartDetails(p)
-                });
+                partById.put(p.getPartId(), p);
+                productGrid.add(makeProductCard(p));
             }
         }
-        countLabel.setText(partsModel.getRowCount() + " parts");
+        countLabel.setText(partById.size() + " parts");
+        productGrid.revalidate();
+        productGrid.repaint();
+        loadImagesAsync();
+    }
+
+    private JPanel makeProductCard(Part p) {
+        JPanel card = new JPanel(new BorderLayout(0, 8)) {
+            private boolean hover = false;
+            {
+                addMouseListener(new MouseAdapter() {
+                    public void mouseEntered(MouseEvent e) { hover = true; repaint(); }
+                    public void mouseExited(MouseEvent e)  { hover = false; repaint(); }
+                    public void mouseClicked(MouseEvent e) {
+                        selectedPartId = p.getPartId();
+                        for (Component c : productGrid.getComponents()) {
+                            if (c instanceof JPanel) c.repaint();
+                        }
+                    }
+                    public void mouseDoubleClicked(MouseEvent e) { addPartToBuild(); }
+                });
+                setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            }
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                Color bg = hover ? Theme.SURFACE_3 : Theme.SURFACE;
+                g2.setColor(bg);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), Theme.R_MEDIUM, Theme.R_MEDIUM);
+                if (selectedPartId == p.getPartId()) {
+                    g2.setColor(Theme.ACCENT);
+                    g2.setStroke(new BasicStroke(2f));
+                    g2.drawRoundRect(1, 1, getWidth() - 3, getHeight() - 3, Theme.R_MEDIUM, Theme.R_MEDIUM);
+                }
+                g2.dispose();
+            }
+        };
+        card.setOpaque(false);
+        card.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+
+        JPanel imgWrap = new JPanel(new BorderLayout());
+        imgWrap.setOpaque(false);
+        imgWrap.setPreferredSize(new Dimension(0, 120));
+        JLabel imgLbl = new JLabel();
+        imgLbl.setHorizontalAlignment(SwingConstants.CENTER);
+        imgLbl.setVerticalAlignment(SwingConstants.CENTER);
+        imgWrap.add(imgLbl, BorderLayout.CENTER);
+        card.add(imgWrap, BorderLayout.NORTH);
+
+        JPanel body = new JPanel();
+        body.setOpaque(false);
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+        body.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel brand = new JLabel(p.getBrand().toUpperCase());
+        brand.setFont(Theme.medium(8));
+        brand.setForeground(Theme.TEXT_3);
+        brand.setAlignmentX(Component.LEFT_ALIGNMENT);
+        body.add(brand);
+
+        JLabel name = new JLabel("<html><div style='width:180px;font-size:13px'>" + p.getName() + "</div></html>");
+        name.setFont(Theme.regular(13));
+        name.setForeground(Theme.TEXT);
+        name.setAlignmentX(Component.LEFT_ALIGNMENT);
+        body.add(name);
+        body.add(Box.createVerticalGlue());
+
+        JPanel footer = new JPanel(new BorderLayout());
+        footer.setOpaque(false);
+        footer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+        footer.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel price = new JLabel("PKR " + String.format("%,d", p.getPrice()));
+        price.setFont(Theme.mono(12));
+        price.setForeground(Theme.ACCENT);
+        footer.add(price, BorderLayout.WEST);
+        JLabel score = new JLabel("★ " + p.getPerformanceScore());
+        score.setFont(Theme.medium(10));
+        score.setForeground(Theme.VIOLET);
+        footer.add(score, BorderLayout.EAST);
+        body.add(footer);
+
+        card.add(body, BorderLayout.CENTER);
+
+        JButton addBtn = new JButton("ADD") {
+            private boolean h = false;
+            {
+                setContentAreaFilled(false);
+                setBorderPainted(false);
+                setFocusPainted(false);
+                setOpaque(false);
+                setFont(Theme.medium(10));
+                setForeground(Theme.ACCENT);
+                setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                setBorder(BorderFactory.createEmptyBorder(6, 0, 6, 0));
+                addMouseListener(new MouseAdapter() {
+                    public void mouseEntered(MouseEvent e) { h = true; repaint(); }
+                    public void mouseExited(MouseEvent e)  { h = false; repaint(); }
+                });
+            }
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(h ? Theme.ACCENT_SOFT : new Color(0, 0, 0, 0));
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), Theme.R_SMALL, Theme.R_SMALL);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        addBtn.addActionListener(e -> {
+            selectedPartId = p.getPartId();
+            addPartToBuild();
+        });
+        addBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        addBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+        body.add(addBtn);
+
+        ImageIcon icon = preloadedIcons.get(p.getPartId());
+        if (icon == null) icon = ImageCache.getDefault(p.getCategoryId(), 80, 80);
+        imgLbl.setIcon(icon);
+        return card;
     }
 
     private void addPartToBuild() {
@@ -438,34 +562,29 @@ public class BuildCatalogGUI extends JPanel {
             JOptionPane.showMessageDialog(this, "Select a part first.");
             return;
         }
-
         Part part = partDAO.getPartById(selectedPartId);
         if (part == null) return;
-
         if (part.getCategoryId() == 1) {
             selectedSocket = part.getSocketType();
             selectedDdrGen = part.getDdrGeneration();
             loadParts();
         }
-
         currentBuildParts.put(part.getCategoryId(), part.getPartId());
-        partSlotLabels.get(part.getCategoryId()).setText(part.getBrand() + " " + part.getName());
-        partSlotLabels.get(part.getCategoryId()).setForeground(TEXT);
-
+        JLabel lbl = partSlotLabels.get(part.getCategoryId());
+        if (lbl != null) {
+            lbl.setText(part.getBrand() + " " + part.getName());
+            lbl.setForeground(Theme.TEXT);
+        }
         updateTotals();
     }
 
     private void updateTotals() {
-        int totalP = 0;
-        int totalS = 0;
+        int totalP = 0, totalS = 0;
         for (Map.Entry<Integer, Integer> e : currentBuildParts.entrySet()) {
             Part p = partDAO.getPartById(e.getValue());
-            if (p != null) {
-                totalP += p.getPrice();
-                totalS += p.getPerformanceScore();
-            }
+            if (p != null) { totalP += p.getPrice(); totalS += p.getPerformanceScore(); }
         }
-        totalPriceLabel.setText(String.format("PKR %,d", totalP));
+        totalPriceLabel.setText("PKR " + String.format("%,d", totalP));
         totalScoreLabel.setText(String.valueOf(totalS));
     }
 
@@ -473,10 +592,7 @@ public class BuildCatalogGUI extends JPanel {
         currentBuildParts.clear();
         selectedSocket = null;
         selectedDdrGen = null;
-        for (JLabel l : partSlotLabels.values()) {
-            l.setText("Not selected");
-            l.setForeground(MUTED);
-        }
+        for (JLabel l : partSlotLabels.values()) { l.setText("Not selected"); l.setForeground(Theme.TEXT_3); }
         totalPriceLabel.setText("PKR 0");
         totalScoreLabel.setText("0");
         loadParts();
@@ -487,70 +603,85 @@ public class BuildCatalogGUI extends JPanel {
             JOptionPane.showMessageDialog(this, "Select all 5 parts before saving.");
             return;
         }
-
         String name = JOptionPane.showInputDialog(this, "Build name:", "My Custom Build");
         if (name == null || name.trim().isEmpty()) return;
-
         int buildId = buildDAO.createBuild(name.trim());
-        if (buildId == -1) {
-            JOptionPane.showMessageDialog(this, "Failed to create build.");
-            return;
-        }
-
-        int totalPrice = 0;
-        int totalScore = 0;
+        if (buildId == -1) { JOptionPane.showMessageDialog(this, "Failed to create build."); return; }
+        int totalPrice = 0, totalScore = 0;
         for (Map.Entry<Integer, Integer> e : currentBuildParts.entrySet()) {
             Part p = partDAO.getPartById(e.getValue());
-            if (p != null) {
-                buildDAO.addPartToBuild(buildId, e.getKey(), e.getValue(), p.getPrice());
-                totalPrice += p.getPrice();
-                totalScore += p.getPerformanceScore();
-            }
+            if (p != null) { buildDAO.addPartToBuild(buildId, e.getKey(), e.getValue(), p.getPrice()); totalPrice += p.getPrice(); totalScore += p.getPerformanceScore(); }
         }
-
         buildDAO.updateBuildTotals(buildId, totalPrice, totalScore);
         JOptionPane.showMessageDialog(this, "Build saved: " + name);
-
         clearBuild();
         loadBuilds();
         dashboard.refreshStats();
     }
 
     private void loadBuilds() {
-        buildsModel.setRowCount(0);
+        buildsStrip.removeAll();
         List<Build> builds = buildDAO.getAllBuilds();
-        for (Build b : builds) {
-            int partCount = buildDAO.getPartCountInBuild(b.getBuildId());
-            buildsModel.addRow(new Object[]{
-                b.getBuildId(), b.getName(), b.getTotalPrice(),
-                b.getTotalScore(), partCount,
-                b.getCreatedAt() != null ? b.getCreatedAt().toString().substring(0, 16) : ""
-            });
+        if (builds.isEmpty()) {
+            buildsStrip.add(new JLabel("No builds yet."));
+            buildsStrip.revalidate();
+            return;
         }
+        for (Build b : builds) {
+            buildsStrip.add(makeBuildChip(b));
+            buildsStrip.add(Box.createHorizontalStrut(8));
+        }
+        buildsStrip.revalidate();
+        buildsStrip.repaint();
+    }
+
+    private JPanel makeBuildChip(Build b) {
+        JPanel chip = new JPanel(new BorderLayout(0, 4)) {
+            private boolean hover = false;
+            {
+                setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                addMouseListener(new MouseAdapter() {
+                    public void mouseEntered(MouseEvent e) { hover = true; repaint(); }
+                    public void mouseExited(MouseEvent e)  { hover = false; repaint(); }
+                    public void mouseClicked(MouseEvent e) { selectedBuildId = b.getBuildId(); loadSelectedBuild(); }
+                });
+            }
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(hover ? Theme.SURFACE_3 : Theme.SURFACE_2);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), Theme.R_MEDIUM, Theme.R_MEDIUM);
+                g2.dispose();
+            }
+        };
+        chip.setOpaque(false);
+        chip.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
+        chip.setPreferredSize(new Dimension(170, 40));
+
+        JLabel name = new JLabel(b.getName());
+        name.setFont(Theme.regular(11));
+        name.setForeground(Theme.TEXT);
+        chip.add(name, BorderLayout.NORTH);
+
+        JLabel detail = new JLabel(String.format("PKR %,d  ·  ★ %d", b.getTotalPrice(), b.getTotalScore()));
+        detail.setFont(Theme.mono(9));
+        detail.setForeground(Theme.TEXT_3);
+        chip.add(detail, BorderLayout.SOUTH);
+        return chip;
     }
 
     private void loadSelectedBuild() {
-        if (selectedBuildId == -1) {
-            JOptionPane.showMessageDialog(this, "Select a build first.");
-            return;
-        }
-
+        if (selectedBuildId == -1) return;
         clearBuild();
-
         List<BuildPart> parts = buildDAO.getBuildParts(selectedBuildId);
         for (BuildPart bp : parts) {
             currentBuildParts.put(bp.getCategoryId(), bp.getPartId());
-            JLabel label = partSlotLabels.get(bp.getCategoryId());
-            if (label != null) {
-                label.setText(bp.getPartBrand() + " " + bp.getPartName());
-                label.setForeground(TEXT);
-            }
+            JLabel l = partSlotLabels.get(bp.getCategoryId());
+            if (l != null) { l.setText(bp.getPartBrand() + " " + bp.getPartName()); l.setForeground(Theme.TEXT); }
             if (bp.getCategoryId() == 1) {
                 Part cpu = partDAO.getPartById(bp.getPartId());
-                if (cpu != null) {
-                    selectedSocket = cpu.getSocketType();
-                    selectedDdrGen = cpu.getDdrGeneration();
-                }
+                if (cpu != null) { selectedSocket = cpu.getSocketType(); selectedDdrGen = cpu.getDdrGeneration(); }
             }
         }
         updateTotals();
@@ -558,56 +689,64 @@ public class BuildCatalogGUI extends JPanel {
     }
 
     private void deleteSelectedBuild() {
-        if (selectedBuildId == -1) {
-            JOptionPane.showMessageDialog(this, "Select a build first.");
-            return;
-        }
-
+        if (selectedBuildId == -1) { JOptionPane.showMessageDialog(this, "Click a saved build chip first."); return; }
         int confirm = JOptionPane.showConfirmDialog(this, "Delete this build?", "Confirm", JOptionPane.YES_NO_OPTION);
-        if (confirm == JOptionPane.YES_OPTION) {
-            buildDAO.deleteBuild(selectedBuildId);
-            selectedBuildId = -1;
-            loadBuilds();
-            dashboard.refreshStats();
-        }
+        if (confirm == JOptionPane.YES_OPTION) { buildDAO.deleteBuild(selectedBuildId); selectedBuildId = -1; loadBuilds(); dashboard.refreshStats(); }
     }
 
-    private void styleTable(JTable table) {
-        table.setBackground(CARD);
-        table.setForeground(TEXT);
-        table.setGridColor(BORDER);
-        table.setSelectionBackground(BLUE.darker());
-        table.setSelectionForeground(TEXT);
-        table.setFont(DashboardGUI.font(Font.PLAIN, 12));
-        table.setRowHeight(32);
-        table.setShowVerticalLines(false);
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-
-        JTableHeader header = table.getTableHeader();
-        header.setBackground(new Color(15, 15, 22));
-        header.setForeground(MUTED);
-        header.setFont(DashboardGUI.font(Font.BOLD, 11));
-        header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER));
-
-        DefaultTableCellRenderer center = new DefaultTableCellRenderer();
-        center.setHorizontalAlignment(SwingConstants.CENTER);
-        center.setBackground(CARD);
-        center.setForeground(TEXT);
-
-        for (int i = 0; i < table.getColumnCount(); i++) {
-            table.getColumnModel().getColumn(i).setCellRenderer(center);
-        }
+    private void loadImagesAsync() {
+        if (currentImageLoader != null && !currentImageLoader.isDone()) currentImageLoader.cancel(true);
+        preloadedIcons.clear();
+        final List<Part> toLoad = new ArrayList<>();
+        for (Part p : partById.values()) if (p.hasImage()) toLoad.add(p);
+        if (toLoad.isEmpty()) return;
+        currentImageLoader = new SwingWorker<>() {
+            @Override
+            protected Void doInBackground() {
+                for (Part p : toLoad) {
+                    if (isCancelled()) return null;
+                    ImageIcon icon = ImageCache.get(p.getImagePath(), p.getCategoryId(), 80, 80);
+                    if (isCancelled()) return null;
+                    preloadedIcons.put(p.getPartId(), icon);
+                    publish(p.getPartId());
+                }
+                return null;
+            }
+            @Override
+            protected void process(List<Integer> chunks) {
+                for (int partId : chunks) {
+                    for (Component c : productGrid.getComponents()) {
+                        if (c instanceof JPanel) {
+                            for (Component inner : ((JPanel) c).getComponents()) {
+                                if (inner instanceof JPanel) {
+                                    for (Component deep : ((JPanel) inner).getComponents()) {
+                                        if (deep instanceof JLabel && ((JLabel) deep).getIcon() != null) {
+                                            Part p = partById.get(partId);
+                                            if (p != null) ((JLabel) deep).setIcon(preloadedIcons.get(partId));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        currentImageLoader.execute();
     }
 
-    private JButton accentButton(String text, Color accent) {
-        JButton btn = new JButton(text);
-        btn.setFont(DashboardGUI.font(Font.BOLD, 12));
-        btn.setBackground(accent);
-        btn.setForeground(new Color(8, 8, 12));
-        btn.setBorderPainted(false);
-        btn.setFocusPainted(false);
-        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btn.setPreferredSize(new Dimension(180, 35));
-        return btn;
+    private void openImageEditor() {
+        if (selectedPartId == -1) { JOptionPane.showMessageDialog(this, "Select a part first."); return; }
+        Part part = partDAO.getPartById(selectedPartId);
+        if (part == null) { JOptionPane.showMessageDialog(this, "Could not load part."); return; }
+        ImageEditorDialog dlg = new ImageEditorDialog(SwingUtilities.getWindowAncestor(this), part);
+        dlg.setVisible(true);
+        if (dlg.isSaved()) {
+            Part updated = partDAO.getPartById(selectedPartId);
+            if (updated != null) {
+                partById.put(updated.getPartId(), updated);
+                if (searchField.getText().trim().isEmpty()) loadParts(); else filterParts();
+            }
+        }
     }
 }

@@ -18,11 +18,13 @@ public class Part {
     private String readSpeed;
     private Integer wattage;
     private String efficiency;
+    private String imagePath;
 
     public Part(int partId, int categoryId, String brand, String name, int price,
                 int performanceScore, String socketType, String ddrGeneration,
                 Integer coreCount, String clockSpeed, String vram, String memorySpeed,
-                String capacity, String readSpeed, Integer wattage, String efficiency) {
+                String capacity, String readSpeed, Integer wattage, String efficiency,
+                String imagePath) {
         this.partId = partId;
         this.categoryId = categoryId;
         this.brand = brand;
@@ -39,6 +41,16 @@ public class Part {
         this.readSpeed = readSpeed;
         this.wattage = wattage;
         this.efficiency = efficiency;
+        this.imagePath = imagePath;
+    }
+
+    public Part(int partId, int categoryId, String brand, String name, int price,
+                int performanceScore, String socketType, String ddrGeneration,
+                Integer coreCount, String clockSpeed, String vram, String memorySpeed,
+                String capacity, String readSpeed, Integer wattage, String efficiency) {
+        this(partId, categoryId, brand, name, price, performanceScore,
+             socketType, ddrGeneration, coreCount, clockSpeed, vram, memorySpeed,
+             capacity, readSpeed, wattage, efficiency, null);
     }
 
     public int getPartId() { return partId; }
@@ -57,6 +69,13 @@ public class Part {
     public String getReadSpeed() { return readSpeed; }
     public Integer getWattage() { return wattage; }
     public String getEfficiency() { return efficiency; }
+    public String getImagePath() { return imagePath; }
+
+    public void setImagePath(String imagePath) { this.imagePath = imagePath; }
+
+    public boolean hasImage() {
+        return imagePath != null && !imagePath.trim().isEmpty();
+    }
 
     @Override
     public String toString() { return brand + " " + name; }

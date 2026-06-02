@@ -94,7 +94,7 @@ public class PartDAO {
     }
 
     public boolean addPart(Part p) {
-        String sql = "INSERT INTO parts (category_id, brand, name, price, performance_score, socket_type, ddr_generation, core_count, clock_speed, vram, memory_speed, capacity, read_speed, wattage, efficiency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO parts (category_id, brand, name, price, performance_score, socket_type, ddr_generation, core_count, clock_speed, vram, memory_speed, capacity, read_speed, wattage, efficiency, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = DBConnection.get().connection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, p.getCategoryId());
@@ -112,6 +112,7 @@ public class PartDAO {
             ps.setString(13, p.getReadSpeed());
             if (p.getWattage() != null) ps.setInt(14, p.getWattage()); else ps.setNull(14, java.sql.Types.INTEGER);
             ps.setString(15, p.getEfficiency());
+            if (p.hasImage()) ps.setString(16, p.getImagePath()); else ps.setNull(16, java.sql.Types.VARCHAR);
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
             e.printStackTrace();
@@ -180,6 +181,23 @@ public class PartDAO {
         return 0;
     }
 
+    public boolean updateImagePath(int partId, String imagePath) {
+        String sql = "UPDATE parts SET image_path = ? WHERE part_id = ?";
+        try (Connection conn = DBConnection.get().connection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            if (imagePath == null || imagePath.trim().isEmpty()) {
+                ps.setNull(1, java.sql.Types.VARCHAR);
+            } else {
+                ps.setString(1, imagePath.trim());
+            }
+            ps.setInt(2, partId);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
     private Part mapPart(ResultSet rs) throws SQLException {
         return new Part(
             rs.getInt("part_id"),
@@ -197,7 +215,8 @@ public class PartDAO {
             rs.getString("capacity"),
             rs.getString("read_speed"),
             rs.getObject("wattage") != null ? rs.getInt("wattage") : null,
-            rs.getString("efficiency")
+            rs.getString("efficiency"),
+            rs.getString("image_path")
         );
     }
 }
