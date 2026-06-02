@@ -306,25 +306,50 @@ public class DashboardGUI extends JFrame {
     private JPanel createChatBotPanel() {
         JPanel side = new JPanel(new BorderLayout());
         side.setBackground(Theme.SIDEBAR);
-        side.setPreferredSize(new Dimension(250, 0));
-        side.setMinimumSize(new Dimension(230, 0));
+        side.setPreferredSize(new Dimension(270, 0));
+        side.setMinimumSize(new Dimension(250, 0));
         side.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, Theme.BORDER));
 
-        JPanel header = new JPanel(new BorderLayout(8, 0));
-        header.setOpaque(true);
-        header.setBackground(Theme.SIDEBAR);
-        header.setBorder(BorderFactory.createEmptyBorder(14, 16, 14, 16));
+        JPanel header = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                GradientPaint gp = new GradientPaint(0, 0, new Color(0x12, 0x12, 0x1C), getWidth(), 0, new Color(0x0A, 0x0A, 0x10));
+                g2.setPaint(gp);
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.setColor(Theme.BORDER);
+                g2.fillRect(0, getHeight() - 1, getWidth(), 1);
+                g2.dispose();
+            }
+        };
+        header.setLayout(new BorderLayout());
+        header.setOpaque(false);
+        header.setBorder(BorderFactory.createEmptyBorder(16, 16, 14, 16));
 
         JPanel titleRow = new JPanel();
         titleRow.setLayout(new BoxLayout(titleRow, BoxLayout.X_AXIS));
         titleRow.setOpaque(false);
-        titleRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        chatStatusDot = Components.dot(Theme.TEXT_3, 8);
+        chatStatusDot = new JLabel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                Color c = getForeground();
+                g2.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 60));
+                g2.fillOval(0, 0, 10, 10);
+                g2.setColor(c);
+                g2.fillOval(1, 1, 8, 8);
+                g2.dispose();
+            }
+        };
+        chatStatusDot.setPreferredSize(new Dimension(10, 10));
+        chatStatusDot.setForeground(chatConfig.isConfigured() ? Theme.ACCENT : Theme.WARN);
         titleRow.add(chatStatusDot);
         titleRow.add(Box.createHorizontalStrut(8));
         JLabel ttl = new JLabel("PC ASSISTANT");
-        ttl.setFont(Theme.bold(10));
+        ttl.setFont(Theme.bold(11));
         ttl.setForeground(Theme.TEXT);
         titleRow.add(ttl);
         titleRow.add(Box.createHorizontalGlue());
@@ -336,12 +361,12 @@ public class DashboardGUI extends JFrame {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 boolean hov = Boolean.TRUE.equals(getClientProperty("hover"));
                 if (hov) {
-                    g2.setColor(Theme.SURFACE_2);
+                    g2.setColor(new Color(Theme.TEXT_3.getRed(), Theme.TEXT_3.getGreen(), Theme.TEXT_3.getBlue(), 20));
                     g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 4, 4));
                 }
                 int cx = getWidth() / 2;
                 int cy = getHeight() / 2;
-                g2.setColor(Theme.TEXT_3);
+                g2.setColor(hov ? Theme.TEXT_2 : Theme.TEXT_3);
                 g2.setStroke(new BasicStroke(1.4f));
                 g2.drawOval(cx - 4, cy - 4, 8, 8);
                 g2.drawLine(cx - 6, cy, cx + 6, cy);
@@ -353,11 +378,10 @@ public class DashboardGUI extends JFrame {
         gear.setBorderPainted(false);
         gear.setFocusPainted(false);
         gear.setOpaque(false);
-        gear.setFont(Theme.regular(13));
-        gear.setForeground(Theme.TEXT_3);
         gear.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        gear.setPreferredSize(new Dimension(22, 22));
-        gear.setMaximumSize(new Dimension(22, 22));
+        gear.setPreferredSize(new Dimension(24, 24));
+        gear.setMaximumSize(new Dimension(24, 24));
+        gear.setMinimumSize(new Dimension(24, 24));
         gear.setToolTipText("Chat settings");
         gear.addMouseListener(new MouseAdapter() {
             public void mouseEntered(MouseEvent e) { gear.putClientProperty("hover", true); gear.repaint(); }
@@ -365,39 +389,51 @@ public class DashboardGUI extends JFrame {
         });
         gear.addActionListener(e -> openChatSettings());
         titleRow.add(gear);
-        titleRow.add(Box.createHorizontalStrut(8));
+        titleRow.add(Box.createHorizontalStrut(6));
 
         chatStatusText = new JLabel(chatConfig.isConfigured() ? "ONLINE" : "SETUP");
-        chatStatusText.setFont(Theme.medium(8));
+        chatStatusText.setFont(Theme.bold(7));
         chatStatusText.setForeground(chatConfig.isConfigured() ? Theme.ACCENT : Theme.WARN);
         titleRow.add(chatStatusText);
-        titleRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
+
         header.add(titleRow, BorderLayout.NORTH);
 
-        JLabel sub = new JLabel(chatConfig.isConfigured() ? "Ask about parts, builds, prices" : "Click (gear) to connect a model");
+        JLabel sub = new JLabel(chatConfig.isConfigured()
+            ? "Ask about parts, builds, and prices"
+            : "Click (gear) to connect your model");
         sub.setFont(Theme.regular(10));
         sub.setForeground(Theme.TEXT_3);
-        sub.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
+        sub.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
         header.add(sub, BorderLayout.CENTER);
 
         side.add(header, BorderLayout.NORTH);
 
-        chatMessagesWrap = new JPanel();
+        chatMessagesWrap = new JPanel() {
+            @Override
+            public Dimension getPreferredSize() {
+                Dimension d = super.getPreferredSize();
+                if (getParent() instanceof JViewport vp) {
+                    d.width = vp.getExtentSize().width;
+                }
+                return d;
+            }
+        };
         chatMessagesWrap.setLayout(new BoxLayout(chatMessagesWrap, BoxLayout.Y_AXIS));
         chatMessagesWrap.setBackground(Theme.SIDEBAR);
-        chatMessagesWrap.setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
+        chatMessagesWrap.setBorder(BorderFactory.createEmptyBorder(2, 12, 2, 12));
 
         addBotMessage(chatMessagesWrap, "Hi! I'm PC Assistant.");
         if (chatConfig.isConfigured()) {
             addBotMessage(chatMessagesWrap, "Ask me about parts, compatibility, prices, or saving a build.");
         } else {
-            addBotMessage(chatMessagesWrap, "Click the (gear) icon to connect an OpenAI-compatible /v1 endpoint.");
+            addBotMessage(chatMessagesWrap, "Click the (gear) icon to connect an OpenAI-compatible endpoint.");
         }
 
         chatMsgScroll = new JScrollPane(chatMessagesWrap);
         chatMsgScroll.setOpaque(false);
         chatMsgScroll.getViewport().setOpaque(false);
         Components.applyDarkScrollbar(chatMsgScroll);
+        chatMsgScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         chatMsgScroll.setBorder(BorderFactory.createEmptyBorder());
         side.add(chatMsgScroll, BorderLayout.CENTER);
 
@@ -405,7 +441,7 @@ public class DashboardGUI extends JFrame {
         inputBar.setBackground(Theme.SIDEBAR);
         inputBar.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createMatteBorder(1, 0, 0, 0, Theme.BORDER),
-            BorderFactory.createEmptyBorder(12, 12, 12, 12)
+            BorderFactory.createEmptyBorder(10, 12, 10, 12)
         ));
 
         chatInput = new JTextField();
@@ -419,27 +455,31 @@ public class DashboardGUI extends JFrame {
         ));
         chatInput.addActionListener(e -> sendChatMessage());
 
-        chatSendBtn = new JButton("SEND") {
+        chatSendBtn = new JButton() {
             @Override
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 boolean hov = Boolean.TRUE.equals(getClientProperty("hover"));
                 g2.setColor(hov ? Theme.ACCENT_HOV : Theme.ACCENT);
-                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 4, 4));
+                int w = getWidth(), h = getHeight();
+                g2.fill(new RoundRectangle2D.Float(0, 0, w, h, 4, 4));
+                g2.setColor(Theme.TEXT_INV);
+                g2.setFont(Theme.bold(10));
+                FontMetrics fm = g2.getFontMetrics();
+                String s = "SEND";
+                int tx = (w - fm.stringWidth(s)) / 2;
+                int ty = (h - fm.getHeight()) / 2 + fm.getAscent();
+                g2.drawString(s, tx, ty);
                 g2.dispose();
-                super.paintComponent(g);
             }
         };
         chatSendBtn.setContentAreaFilled(false);
         chatSendBtn.setBorderPainted(false);
         chatSendBtn.setFocusPainted(false);
         chatSendBtn.setOpaque(false);
-        chatSendBtn.setFont(Theme.bold(9));
-        chatSendBtn.setForeground(Theme.TEXT_INV);
         chatSendBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        chatSendBtn.setPreferredSize(new Dimension(64, 34));
-        chatSendBtn.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+        chatSendBtn.setPreferredSize(new Dimension(60, 34));
         chatSendBtn.addMouseListener(new MouseAdapter() {
             public void mouseEntered(MouseEvent e) { chatSendBtn.putClientProperty("hover", true); chatSendBtn.repaint(); }
             public void mouseExited(MouseEvent e)  { chatSendBtn.putClientProperty("hover", false); chatSendBtn.repaint(); }
@@ -544,105 +584,112 @@ public class DashboardGUI extends JFrame {
         });
     }
 
-    private void addUserMessage(JPanel wrap, String text) {
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 4));
-        row.setOpaque(false);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JPanel bubble = new JPanel() {
+    private JTextArea makeMessageText(String text, int width, Color fg) {
+        JTextArea t = new JTextArea(text);
+        t.setFont(Theme.regular(11));
+        t.setForeground(fg);
+        t.setOpaque(false);
+        t.setEditable(false);
+        t.setFocusable(false);
+        t.setLineWrap(true);
+        t.setWrapStyleWord(true);
+        t.setSize(new Dimension(width, Short.MAX_VALUE));
+        Dimension d = t.getPreferredSize();
+        t.setPreferredSize(new Dimension(width, d.height));
+        return t;
+    }
+
+    private JPanel makeUserBubble(String text) {
+        JPanel bubble = new JPanel(new BorderLayout()) {
             @Override
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setColor(Theme.ACCENT);
-                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 8, 8));
+                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 6, 6));
                 g2.dispose();
                 super.paintComponent(g);
             }
         };
         bubble.setOpaque(false);
-        bubble.setLayout(new BorderLayout());
-        bubble.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
-        JLabel l = new JLabel("<html><div style='width:200px;color:#08080C'>" + escape(text) + "</div></html>");
-        l.setFont(Theme.regular(11));
-        l.setForeground(new Color(0x08, 0x08, 0x0C));
-        bubble.add(l, BorderLayout.CENTER);
-        bubble.setMaximumSize(new Dimension(240, Integer.MAX_VALUE));
+        bubble.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        bubble.add(makeMessageText(text, 170, new Color(0x08, 0x08, 0x0C)), BorderLayout.CENTER);
+        return bubble;
+    }
+
+    private JPanel makeBotBubble(String text) {
+        JPanel bubble = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(Theme.SURFACE_2);
+                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 6, 6));
+                g2.setColor(Theme.BORDER);
+                g2.setStroke(new BasicStroke(1));
+                g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, getWidth() - 1, getHeight() - 1, 6, 6));
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        bubble.setOpaque(false);
+        bubble.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        bubble.add(makeMessageText(text, 190, Theme.TEXT), BorderLayout.CENTER);
+        return bubble;
+    }
+
+    private void addUserMessage(JPanel wrap, String text) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        row.setOpaque(false);
+        JPanel bubble = makeUserBubble(text);
         row.add(bubble);
         wrap.add(row);
-        wrap.add(Box.createVerticalStrut(2));
     }
 
     private void addBotMessage(JPanel wrap, String text) {
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 4));
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         row.setOpaque(false);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JPanel bubble = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(Theme.SURFACE_2);
-                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 8, 8));
-                g2.setColor(Theme.BORDER);
-                g2.setStroke(new BasicStroke(1));
-                g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, getWidth() - 1, getHeight() - 1, 8, 8));
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
-        bubble.setOpaque(false);
-        bubble.setLayout(new BorderLayout());
-        bubble.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
-        JLabel l = new JLabel("<html><div style='width:220px;color:#F5F5FA'>" + escape(text) + "</div></html>");
-        l.setFont(Theme.regular(11));
-        l.setForeground(Theme.TEXT);
-        bubble.add(l, BorderLayout.CENTER);
-        bubble.setMaximumSize(new Dimension(260, Integer.MAX_VALUE));
+        JPanel bubble = makeBotBubble(text);
         row.add(bubble);
         wrap.add(row);
-        wrap.add(Box.createVerticalStrut(2));
     }
 
     private JLabel beginBotMessage() {
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 4));
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         row.setOpaque(false);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JPanel bubble = new JPanel() {
+        JPanel bubble = new JPanel(new BorderLayout()) {
             @Override
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setColor(Theme.SURFACE_2);
-                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 8, 8));
+                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 6, 6));
                 g2.setColor(Theme.BORDER);
                 g2.setStroke(new BasicStroke(1));
-                g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, getWidth() - 1, getHeight() - 1, 8, 8));
+                g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, getWidth() - 1, getHeight() - 1, 6, 6));
                 g2.dispose();
                 super.paintComponent(g);
             }
         };
         bubble.setOpaque(false);
-        bubble.setLayout(new BorderLayout());
-        bubble.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
-        JLabel l = new JLabel("<html><div style='width:220px;color:#F5F5FA'>...</div></html>");
+        bubble.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        JLabel l = new JLabel("...");
         l.setFont(Theme.regular(11));
         l.setForeground(Theme.TEXT);
         l.setName("bot-streaming");
         bubble.add(l, BorderLayout.CENTER);
-        bubble.setMaximumSize(new Dimension(260, Integer.MAX_VALUE));
         row.add(bubble);
         chatMessagesWrap.add(row);
-        chatMessagesWrap.add(Box.createVerticalStrut(2));
         chatMessagesWrap.revalidate();
         return l;
     }
 
     private void appendToBotMessage(JLabel l, String text) {
-        l.setText("<html><div style='width:220px;color:#F5F5FA'>" + escape(text) + "</div></html>");
+        l.setText(text);
     }
 
     private void finalizeBotMessage(JLabel l, String text) {
-        l.setText("<html><div style='width:220px;color:#F5F5FA'>" + escape(text) + "</div></html>");
+        l.setText(text);
         chatMessagesWrap.revalidate();
         chatMessagesWrap.repaint();
     }
