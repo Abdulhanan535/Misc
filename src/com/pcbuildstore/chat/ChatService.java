@@ -100,36 +100,15 @@ public class ChatService {
     }
 
     private static String extractDeltaContent(String json) {
-        int choicesIdx = json.indexOf("\"choices\"");
-        if (choicesIdx == -1) return null;
-        int arrStart = json.indexOf("[", choicesIdx);
-        if (arrStart == -1) return null;
-        int objStart = json.indexOf("{", arrStart);
-        if (objStart == -1) return null;
-
-        int deltaIdx = json.indexOf("\"delta\"", objStart);
-        if (deltaIdx == -1) return null;
-        int deltaObjStart = json.indexOf("{", deltaIdx);
-        if (deltaObjStart == -1) return null;
-
-        int contentIdx = json.indexOf("\"content\"", deltaObjStart);
-        if (contentIdx == -1) return null;
-        int colonIdx = json.indexOf(":", contentIdx);
-        if (colonIdx == -1) return null;
-
-        int valStart = colonIdx + 1;
-        while (valStart < json.length() && json.charAt(valStart) == ' ') valStart++;
-        if (valStart >= json.length()) return null;
-
-        if (json.startsWith("null", valStart)) return null;
-        if (json.charAt(valStart) != '"') return null;
-
-        valStart++;
+        String needle = "\"content\":\"";
+        int idx = json.indexOf(needle);
+        if (idx == -1) return null;
+        idx += needle.length();
         StringBuilder sb = new StringBuilder();
-        while (valStart < json.length()) {
-            char c = json.charAt(valStart++);
-            if (c == '\\' && valStart < json.length()) {
-                char next = json.charAt(valStart++);
+        while (idx < json.length()) {
+            char c = json.charAt(idx++);
+            if (c == '\\' && idx < json.length()) {
+                char next = json.charAt(idx++);
                 switch (next) {
                     case '"': sb.append('"'); break;
                     case '\\': sb.append('\\'); break;
