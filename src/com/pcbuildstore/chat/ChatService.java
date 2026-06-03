@@ -1,10 +1,5 @@
 package com.pcbuildstore.chat;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,7 +11,6 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -26,7 +20,6 @@ public class ChatService {
 
     private final ChatConfig config;
     private final HttpClient client;
-    private final Gson gson = new Gson();
 
     public ChatService(ChatConfig config) {
         this.config = config;
@@ -43,22 +36,7 @@ public class ChatService {
 
     private void doStream(List<Message> history, Consumer<String> onToken, Runnable onDone, Consumer<String> onError, AtomicBoolean cancel) {
         try {
-            JsonObject body = new JsonObject();
-            body.addProperty("model", config.model);
-            body.addProperty("stream", true);
-
-            JsonArray msgs = new JsonArray();
-            JsonObject sys = new JsonObject();
-            sys.addProperty("role", "system");
-            sys.addProperty("content", config.systemPrompt);
-            msgs.add(sys);
-            for (Message m : history) {
-                JsonObject jo = new JsonObject();
-                jo.addProperty("role", m.role());
-                jo.addProperty("content", m.content());
-                msgs.add(jo);
-            }
-            body.add("messages", msgs);
+            String body = buildRequestBody(history);
 
             HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(config.chatCompletionsUrl()))
@@ -66,7 +44,7 @@ public class ChatService {
                 .header("Authorization", "Bearer " + config.apiKey)
                 .header("Accept", "text/event-stream")
                 .timeout(Duration.ofSeconds(120))
-                .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(body)))
+                .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
 
             HttpResponse<InputStream> resp = client.send(req, HttpResponse.BodyHandlers.ofInputStream());
@@ -87,20 +65,8 @@ public class ChatService {
                     String payload = line.substring(5).trim();
                     if (payload.isEmpty() || "[DONE]".equals(payload)) continue;
                     try {
-                        JsonObject ev = JsonParser.parseString(payload).getAsJsonObject();
-                        JsonArray choices = ev.getAsJsonArray("choices");
-                        if (choices == null || choices.isEmpty()) continue;
-                        JsonObject choice = choices.get(0).getAsJsonObject();
-                        if (choice.has("finish_reason") && !choice.get("finish_reason").isJsonNull()) {
-                            String fr = choice.get("finish_reason").getAsString();
-                            if ("stop".equals(fr) || "length".equals(fr) || "tool_calls".equals(fr)) continue;
-                        }
-                        JsonObject delta = choice.getAsJsonObject("delta");
-                        if (delta == null) continue;
-                        if (delta.has("content") && !delta.get("content").isJsonNull()) {
-                            String tok = delta.get("content").getAsString();
-                            if (!tok.isEmpty()) onToken.accept(tok);
-                        }
+                        String content = extractDeltaContent(payload);
+                        if (content != null && !content.isEmpty()) onToken.accept(content);
                     } catch (Exception ignored) {}
                 }
             }
@@ -118,10 +84,91 @@ public class ChatService {
         }
     }
 
+    private String buildRequestBody(List<Message> history) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        sb.append("\"model\":").append(esc(config.model));
+        sb.append(",\"stream\":true");
+        sb.append(",\"messages\":[");
+        sb.append("{\"role\":\"system\",\"content\":").append(esc(config.systemPrompt)).append("}");
+        for (Message m : history) {
+            sb.append(",{\"role\":").append(esc(m.role()));
+            sb.append(",\"content\":").append(esc(m.content())).append("}");
+        }
+        sb.append("]}");
+        return sb.toString();
+    }
+
+    private static String extractDeltaContent(String json) {
+        int choicesIdx = json.indexOf("\"choices\"");
+        if (choicesIdx == -1) return null;
+        int arrStart = json.indexOf("[", choicesIdx);
+        if (arrStart == -1) return null;
+        int objStart = json.indexOf("{", arrStart);
+        if (objStart == -1) return null;
+
+        int deltaIdx = json.indexOf("\"delta\"", objStart);
+        if (deltaIdx == -1) return null;
+        int deltaObjStart = json.indexOf("{", deltaIdx);
+        if (deltaObjStart == -1) return null;
+
+        int contentIdx = json.indexOf("\"content\"", deltaObjStart);
+        if (contentIdx == -1) return null;
+        int colonIdx = json.indexOf(":", contentIdx);
+        if (colonIdx == -1) return null;
+
+        int valStart = colonIdx + 1;
+        while (valStart < json.length() && json.charAt(valStart) == ' ') valStart++;
+        if (valStart >= json.length()) return null;
+
+        if (json.startsWith("null", valStart)) return null;
+        if (json.charAt(valStart) != '"') return null;
+
+        valStart++;
+        StringBuilder sb = new StringBuilder();
+        while (valStart < json.length()) {
+            char c = json.charAt(valStart++);
+            if (c == '\\' && valStart < json.length()) {
+                char next = json.charAt(valStart++);
+                switch (next) {
+                    case '"': sb.append('"'); break;
+                    case '\\': sb.append('\\'); break;
+                    case 'n': sb.append('\n'); break;
+                    case 't': sb.append('\t'); break;
+                    case 'r': sb.append('\r'); break;
+                    default: sb.append('\\').append(next); break;
+                }
+            } else if (c == '"') {
+                break;
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
     private String readAll(InputStream is) throws IOException {
         try (is) {
             return new String(is.readAllBytes(), StandardCharsets.UTF_8);
         }
+    }
+
+    private static String esc(String s) {
+        if (s == null) return "\"\"";
+        StringBuilder sb = new StringBuilder("\"");
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"': sb.append("\\\""); break;
+                case '\\': sb.append("\\\\"); break;
+                case '\n': sb.append("\\n"); break;
+                case '\t': sb.append("\\t"); break;
+                case '\r': sb.append("\\r"); break;
+                default: sb.append(c); break;
+            }
+        }
+        sb.append("\"");
+        return sb.toString();
     }
 
     private String truncate(String s, int n) {

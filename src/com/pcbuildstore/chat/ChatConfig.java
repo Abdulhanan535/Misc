@@ -1,8 +1,5 @@
 package com.pcbuildstore.chat;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,14 +13,12 @@ public class ChatConfig {
 
     private static final Path CONFIG_DIR = Paths.get(System.getProperty("user.home"), ".pcbuildstore");
     private static final Path CONFIG_FILE = CONFIG_DIR.resolve("config.json");
-    private static final Gson GSON = new Gson();
 
     public static ChatConfig load() {
         try {
             if (Files.exists(CONFIG_FILE)) {
                 String json = Files.readString(CONFIG_FILE);
-                ChatConfig cfg = GSON.fromJson(json, ChatConfig.class);
-                if (cfg != null) return cfg;
+                return parse(json);
             }
         } catch (IOException ignored) {}
         return new ChatConfig();
@@ -32,7 +27,7 @@ public class ChatConfig {
     public void save() {
         try {
             Files.createDirectories(CONFIG_DIR);
-            Files.writeString(CONFIG_FILE, GSON.toJson(this));
+            Files.writeString(CONFIG_FILE, toJson());
         } catch (IOException ignored) {}
     }
 
@@ -45,5 +40,80 @@ public class ChatConfig {
         if (b.endsWith("/")) b = b.substring(0, b.length() - 1);
         if (b.endsWith("/v1")) return b + "/chat/completions";
         return b + "/v1/chat/completions";
+    }
+
+    private String toJson() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        sb.append("\"baseUrl\":").append(esc(baseUrl));
+        sb.append(",\"apiKey\":").append(esc(apiKey));
+        sb.append(",\"model\":").append(esc(model));
+        sb.append(",\"systemPrompt\":").append(esc(systemPrompt));
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private static ChatConfig parse(String json) {
+        ChatConfig cfg = new ChatConfig();
+        cfg.baseUrl = extract(json, "baseUrl");
+        cfg.apiKey = extract(json, "apiKey");
+        cfg.model = extract(json, "model");
+        cfg.systemPrompt = extract(json, "systemPrompt");
+        if (cfg.baseUrl == null || cfg.baseUrl.isEmpty()) cfg.baseUrl = "https://api.openai.com/v1";
+        if (cfg.model == null || cfg.model.isEmpty()) cfg.model = "gpt-4o-mini";
+        if (cfg.systemPrompt == null) cfg.systemPrompt = "";
+        return cfg;
+    }
+
+    private static String extract(String json, String key) {
+        String needle = "\"" + key + "\":";
+        int start = json.indexOf(needle);
+        if (start == -1) return "";
+        start += needle.length();
+        while (start < json.length() && json.charAt(start) == ' ') start++;
+        if (start >= json.length()) return "";
+        if (json.charAt(start) == '"') {
+            start++;
+            StringBuilder sb = new StringBuilder();
+            while (start < json.length()) {
+                char c = json.charAt(start++);
+                if (c == '\\' && start < json.length()) {
+                    char next = json.charAt(start++);
+                    switch (next) {
+                        case '"': sb.append('"'); break;
+                        case '\\': sb.append('\\'); break;
+                        case 'n': sb.append('\n'); break;
+                        case 't': sb.append('\t'); break;
+                        default: sb.append('\\').append(next); break;
+                    }
+                } else if (c == '"') {
+                    break;
+                } else {
+                    sb.append(c);
+                }
+            }
+            return sb.toString();
+        }
+        int end = json.indexOf(",", start);
+        if (end == -1) end = json.indexOf("}", start);
+        if (end == -1) end = json.length();
+        return json.substring(start, end).trim();
+    }
+
+    private static String esc(String s) {
+        if (s == s) return "\"\"";
+        StringBuilder sb = new StringBuilder("\"");
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"': sb.append("\\\""); break;
+                case '\\': sb.append("\\\\"); break;
+                case '\n': sb.append("\\n"); break;
+                case '\t': sb.append("\\t"); break;
+                default: sb.append(c); break;
+            }
+        }
+        sb.append("\"");
+        return sb.toString();
     }
 }

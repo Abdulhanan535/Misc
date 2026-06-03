@@ -542,7 +542,7 @@ public class DashboardGUI extends JFrame {
         chatInput.setEnabled(false);
         chatSendBtn.setEnabled(false);
         setChatStatus(Theme.WARN, "THINKING");
-        JLabel pending = beginBotMessage();
+        JTextArea pending = beginBotMessage();
         StringBuilder acc = new StringBuilder();
 
         if (chatService == null) chatService = new ChatService(chatConfig);
@@ -584,7 +584,7 @@ public class DashboardGUI extends JFrame {
         });
     }
 
-    private JTextArea makeMessageText(String text, int width, Color fg) {
+    private JTextArea makeMessageText(String text, Color fg) {
         JTextArea t = new JTextArea(text);
         t.setFont(Theme.regular(11));
         t.setForeground(fg);
@@ -593,11 +593,14 @@ public class DashboardGUI extends JFrame {
         t.setFocusable(false);
         t.setLineWrap(true);
         t.setWrapStyleWord(true);
-        t.setSize(new Dimension(width, Short.MAX_VALUE));
+        t.setSize(new Dimension(CHAT_TEXT_WIDTH, Short.MAX_VALUE));
         Dimension d = t.getPreferredSize();
-        t.setPreferredSize(new Dimension(width, d.height));
+        t.setPreferredSize(new Dimension(CHAT_TEXT_WIDTH, d.height));
         return t;
     }
+
+    private static final int CHAT_TEXT_WIDTH = 220;
+    private static final int CHAT_BUBBLE_MAX = 240;
 
     private JPanel makeUserBubble(String text) {
         JPanel bubble = new JPanel(new BorderLayout()) {
@@ -613,7 +616,8 @@ public class DashboardGUI extends JFrame {
         };
         bubble.setOpaque(false);
         bubble.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        bubble.add(makeMessageText(text, 170, new Color(0x08, 0x08, 0x0C)), BorderLayout.CENTER);
+        bubble.setMaximumSize(new Dimension(CHAT_BUBBLE_MAX, Integer.MAX_VALUE));
+        bubble.add(makeMessageText(text, new Color(0x08, 0x08, 0x0C)), BorderLayout.CENTER);
         return bubble;
     }
 
@@ -634,13 +638,15 @@ public class DashboardGUI extends JFrame {
         };
         bubble.setOpaque(false);
         bubble.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        bubble.add(makeMessageText(text, 190, Theme.TEXT), BorderLayout.CENTER);
+        bubble.setMaximumSize(new Dimension(CHAT_BUBBLE_MAX, Integer.MAX_VALUE));
+        bubble.add(makeMessageText(text, Theme.TEXT), BorderLayout.CENTER);
         return bubble;
     }
 
     private void addUserMessage(JPanel wrap, String text) {
         JPanel row = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         row.setOpaque(false);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         JPanel bubble = makeUserBubble(text);
         row.add(bubble);
         wrap.add(row);
@@ -649,12 +655,13 @@ public class DashboardGUI extends JFrame {
     private void addBotMessage(JPanel wrap, String text) {
         JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         row.setOpaque(false);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         JPanel bubble = makeBotBubble(text);
         row.add(bubble);
         wrap.add(row);
     }
 
-    private JLabel beginBotMessage() {
+    private JTextArea beginBotMessage() {
         JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         row.setOpaque(false);
         JPanel bubble = new JPanel(new BorderLayout()) {
@@ -673,23 +680,22 @@ public class DashboardGUI extends JFrame {
         };
         bubble.setOpaque(false);
         bubble.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        JLabel l = new JLabel("...");
-        l.setFont(Theme.regular(11));
-        l.setForeground(Theme.TEXT);
-        l.setName("bot-streaming");
-        bubble.add(l, BorderLayout.CENTER);
+        bubble.setMaximumSize(new Dimension(CHAT_BUBBLE_MAX, Integer.MAX_VALUE));
+        JTextArea t = makeMessageText("...", Theme.TEXT);
+        t.setName("bot-streaming");
+        bubble.add(t, BorderLayout.CENTER);
         row.add(bubble);
         chatMessagesWrap.add(row);
         chatMessagesWrap.revalidate();
-        return l;
+        return t;
     }
 
-    private void appendToBotMessage(JLabel l, String text) {
-        l.setText(text);
+    private void appendToBotMessage(JTextArea t, String text) {
+        t.setText(text);
     }
 
-    private void finalizeBotMessage(JLabel l, String text) {
-        l.setText(text);
+    private void finalizeBotMessage(JTextArea t, String text) {
+        t.setText(text);
         chatMessagesWrap.revalidate();
         chatMessagesWrap.repaint();
     }
