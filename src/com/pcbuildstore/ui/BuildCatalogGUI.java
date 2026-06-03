@@ -47,7 +47,7 @@ public class BuildCatalogGUI extends JPanel {
     private final Map<Integer, JLabel> slotIconLabels = new HashMap<>();
     private final Map<Integer, Integer> currentBuildParts = new HashMap<>();
     private final Map<Integer, Part> partById = new HashMap<>();
-    private final Map<Integer, ImageIcon> preloadedIcons = new ConcurrentHashMap<>();
+    private final Map<Integer, JLabel> imageLabelsByPartId = new HashMap<>();
     private SwingWorker<Void, Integer> currentImageLoader;
 
     private final List<JPanel> categoryTabs = new ArrayList<>();
@@ -611,9 +611,9 @@ public class BuildCatalogGUI extends JPanel {
         addBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
         body.add(addBtn);
 
-        ImageIcon icon = preloadedIcons.get(p.getPartId());
-        if (icon == null) icon = ImageCache.getDefault(p.getCategoryId(), 80, 80);
+        ImageIcon icon = ImageCache.getDefault(p.getCategoryId(), 80, 80);
         imgLbl.setIcon(icon);
+        imageLabelsByPartId.put(p.getPartId(), imgLbl);
         return card;
     }
 
@@ -764,43 +764,10 @@ public class BuildCatalogGUI extends JPanel {
 
     private void loadImagesAsync() {
         if (currentImageLoader != null && !currentImageLoader.isDone()) currentImageLoader.cancel(true);
-        preloadedIcons.clear();
         final List<Part> toLoad = new ArrayList<>();
         for (Part p : partById.values()) if (p.hasImage()) toLoad.add(p);
         if (toLoad.isEmpty()) return;
-        currentImageLoader = new SwingWorker<>() {
-            @Override
-            protected Void doInBackground() {
-                for (Part p : toLoad) {
-                    if (isCancelled()) return null;
-                    ImageIcon icon = ImageCache.get(p.getImagePath(), p.getCategoryId(), 80, 80);
-                    if (isCancelled()) return null;
-                    preloadedIcons.put(p.getPartId(), icon);
-                    publish(p.getPartId());
-                }
-                return null;
-            }
-            @Override
-            protected void process(List<Integer> chunks) {
-                for (int partId : chunks) {
-                    for (Component c : productGrid.getComponents()) {
-                        if (c instanceof JPanel) {
-                            for (Component inner : ((JPanel) c).getComponents()) {
-                                if (inner instanceof JPanel) {
-                                    for (Component deep : ((JPanel) inner).getComponents()) {
-                                        if (deep instanceof JLabel && ((JLabel) deep).getIcon() != null) {
-                                            Part p = partById.get(partId);
-                                            if (p != null) ((JLabel) deep).setIcon(preloadedIcons.get(partId));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        };
-        currentImageLoader.execute();
+        ImageCache.loadBatch(toLoad, imageLabelsByPartId, 80, 80, null);
     }
 
     private void openImageEditor() {

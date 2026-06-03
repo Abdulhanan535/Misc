@@ -47,7 +47,7 @@ public class DashboardGUI extends JFrame {
     private JLabel liveClock;
 
     private final Map<Integer, Part> partById = new HashMap<>();
-    private final Map<Integer, ImageIcon> preloadedIcons = new ConcurrentHashMap<>();
+    private final Map<Integer, JLabel> imageLabelsByPartId = new HashMap<>();
     private SwingWorker<Void, Integer> currentImageLoader;
 
     private BuildCatalogGUI buildCatalogGUI;
@@ -857,9 +857,9 @@ public class DashboardGUI extends JFrame {
         imgLbl.setVerticalAlignment(SwingConstants.CENTER);
         imgWrap.add(imgLbl, BorderLayout.CENTER);
 
-        ImageIcon icon = preloadedIcons.get(p.getPartId());
-        if (icon == null) icon = ImageCache.getDefault(p.getCategoryId(), 96, 96);
+        ImageIcon icon = ImageCache.getDefault(p.getCategoryId(), 96, 96);
         imgLbl.setIcon(icon);
+        imageLabelsByPartId.put(p.getPartId(), imgLbl);
 
         JLabel badge = new JLabel() {
             @Override
@@ -937,8 +937,8 @@ public class DashboardGUI extends JFrame {
         if (currentImageLoader != null && !currentImageLoader.isDone()) {
             currentImageLoader.cancel(true);
         }
-        preloadedIcons.clear();
         partById.clear();
+        imageLabelsByPartId.clear();
 
         featuredRow.removeAll();
         List<Part> all = new ArrayList<>();
@@ -955,43 +955,12 @@ public class DashboardGUI extends JFrame {
         featuredRow.revalidate();
         featuredRow.repaint();
 
-        final List<Part> toLoad = new ArrayList<>();
+        List<Part> toLoad = new ArrayList<>();
         for (Part p : all) {
             if (p.hasImage()) toLoad.add(p);
         }
         if (toLoad.isEmpty()) return;
-        currentImageLoader = new SwingWorker<>() {
-            @Override
-            protected Void doInBackground() {
-                for (Part p : toLoad) {
-                    if (isCancelled()) return null;
-                    ImageIcon icon = ImageCache.get(p.getImagePath(), p.getCategoryId(), 96, 96);
-                    if (isCancelled()) return null;
-                    preloadedIcons.put(p.getPartId(), icon);
-                    publish(p.getPartId());
-                }
-                return null;
-            }
-            @Override
-            protected void process(List<Integer> chunks) {
-                for (int partId : chunks) {
-                    for (Component c : featuredRow.getComponents()) {
-                        if (c instanceof JPanel) {
-                            JLabel imgLbl = findImageLabel((JPanel) c);
-                            if (imgLbl != null) {
-                                for (Part p : partById.values()) {
-                                    if (p.getPartId() == partId) {
-                                        imgLbl.setIcon(preloadedIcons.get(partId));
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        };
-        currentImageLoader.execute();
+        ImageCache.loadBatch(toLoad, imageLabelsByPartId, 96, 96, null);
     }
 
     private JLabel findImageLabel(JPanel card) {
