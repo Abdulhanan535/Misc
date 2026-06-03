@@ -579,6 +579,7 @@ public class DashboardGUI extends JFrame {
 
     private void scrollChatToBottom() {
         SwingUtilities.invokeLater(() -> {
+            chatMsgScroll.validate();
             JScrollBar bar = chatMsgScroll.getVerticalScrollBar();
             bar.setValue(bar.getMaximum());
         });
@@ -692,10 +693,17 @@ public class DashboardGUI extends JFrame {
 
     private void appendToBotMessage(JTextArea t, String text) {
         t.setText(text);
+        t.setSize(new Dimension(CHAT_TEXT_WIDTH, Short.MAX_VALUE));
+        Dimension d = t.getPreferredSize();
+        t.setPreferredSize(new Dimension(CHAT_TEXT_WIDTH, d.height));
+        chatMessagesWrap.revalidate();
     }
 
     private void finalizeBotMessage(JTextArea t, String text) {
         t.setText(text);
+        t.setSize(new Dimension(CHAT_TEXT_WIDTH, Short.MAX_VALUE));
+        Dimension d = t.getPreferredSize();
+        t.setPreferredSize(new Dimension(CHAT_TEXT_WIDTH, d.height));
         chatMessagesWrap.revalidate();
         chatMessagesWrap.repaint();
     }
