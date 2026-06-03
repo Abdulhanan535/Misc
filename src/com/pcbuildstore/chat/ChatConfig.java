@@ -101,7 +101,7 @@ public class ChatConfig {
     }
 
     private static String esc(String s) {
-        if (s == s) return "\"\"";
+        if (s == null) return "\"\"";
         StringBuilder sb = new StringBuilder("\"");
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
