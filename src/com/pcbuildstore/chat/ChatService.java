@@ -56,18 +56,36 @@ public class ChatService {
                 return;
             }
 
+            StringBuilder fullRaw = new StringBuilder();
+            int tokenCount = 0;
             try (BufferedReader br = new BufferedReader(new InputStreamReader(resp.body(), StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = br.readLine()) != null) {
                     if (cancel != null && cancel.get()) break;
                     if (line.isEmpty()) continue;
-                    if (!line.startsWith("data:")) continue;
-                    String payload = line.substring(5).trim();
+                    fullRaw.append(line).append("\n");
+                    String payload = line;
+                    if (payload.startsWith("data:")) {
+                        payload = payload.substring(5).trim();
+                    }
                     if (payload.isEmpty() || "[DONE]".equals(payload)) continue;
                     try {
                         String content = extractDeltaContent(payload);
-                        if (content != null && !content.isEmpty()) onToken.accept(content);
-                    } catch (Exception ignored) {}
+                        if (content != null && !content.isEmpty()) {
+                            tokenCount++;
+                            onToken.accept(content);
+                        }
+                    } catch (Exception ex) {
+                        System.err.println("Parse error on line: " + truncate(line, 100) + " | " + ex.getMessage());
+                    }
+                }
+            }
+            if (tokenCount == 0) {
+                String raw = fullRaw.toString().trim();
+                if (raw.isEmpty()) {
+                    onError.accept("Server returned no data. Check URL and API key.");
+                } else {
+                    onError.accept("No tokens parsed. Raw: " + truncate(raw, 300));
                 }
             }
             onDone.run();
