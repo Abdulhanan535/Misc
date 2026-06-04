@@ -554,7 +554,7 @@ public class BuildCatalogGUI extends JPanel {
         brand.setAlignmentX(Component.LEFT_ALIGNMENT);
         body.add(brand);
 
-        JLabel name = new JLabel("<html><div style='width:180px;font-size:13px'>" + p.getName() + "</div></html>");
+        JLabel name = new JLabel(p.getName());
         name.setFont(Theme.regular(13));
         name.setForeground(Theme.TEXT);
         name.setAlignmentX(Component.LEFT_ALIGNMENT);

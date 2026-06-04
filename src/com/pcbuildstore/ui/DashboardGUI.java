@@ -239,14 +239,14 @@ public class DashboardGUI extends JFrame {
         left.add(ey);
         left.add(Components.vSpacer(8));
 
-        JLabel h1 = new JLabel("<html>Build the rig that defines you.</html>");
+        JLabel h1 = new JLabel("Build the rig that defines you.");
         h1.setFont(Theme.light(36));
         h1.setForeground(Theme.TEXT);
         h1.setAlignmentX(Component.LEFT_ALIGNMENT);
         left.add(h1);
         left.add(Components.vSpacer(8));
 
-        JLabel sub = new JLabel("<html><span style='color:#9090A8'>Curated parts. Compatibility-checked builds. Real performance scores  -  all in one place to design, save and purchase your next PC.</span></html>");
+        JLabel sub = new JLabel("Curated parts. Compatibility-checked builds. Real performance scores  -  all in one place to design, save and purchase your next PC.");
         sub.setFont(Theme.regular(12));
         sub.setForeground(Theme.TEXT_2);
         sub.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -594,10 +594,33 @@ public class DashboardGUI extends JFrame {
         t.setFocusable(false);
         t.setLineWrap(true);
         t.setWrapStyleWord(true);
-        t.setSize(new Dimension(CHAT_TEXT_WIDTH, Short.MAX_VALUE));
-        Dimension d = t.getPreferredSize();
-        t.setPreferredSize(new Dimension(CHAT_TEXT_WIDTH, d.height));
+        int h = computeTextHeight(t.getFont(), text, CHAT_TEXT_WIDTH);
+        t.setPreferredSize(new Dimension(CHAT_TEXT_WIDTH, h));
         return t;
+    }
+
+    private int computeTextHeight(Font font, String text, int width) {
+        FontMetrics fm = getFontMetrics(font);
+        int lineHeight = fm.getHeight();
+        if (text == null || text.isEmpty()) return lineHeight;
+        String[] paragraphs = text.split("\n", -1);
+        int totalLines = 0;
+        for (String para : paragraphs) {
+            if (para.isEmpty()) { totalLines++; continue; }
+            String[] words = para.split(" ");
+            StringBuilder line = new StringBuilder();
+            for (String word : words) {
+                String trial = line.length() == 0 ? word : line + " " + word;
+                if (fm.stringWidth(trial) > width) {
+                    totalLines++;
+                    line = new StringBuilder(word);
+                } else {
+                    line = new StringBuilder(trial);
+                }
+            }
+            totalLines++;
+        }
+        return lineHeight * totalLines;
     }
 
     private static final int CHAT_TEXT_WIDTH = 220;
@@ -909,7 +932,7 @@ public class DashboardGUI extends JFrame {
         brand.setForeground(Theme.TEXT_3);
         brand.setAlignmentX(Component.LEFT_ALIGNMENT);
         body.add(brand);
-        JLabel name = new JLabel("<html><div style='width:180px'>" + p.getName() + "</div></html>");
+        JLabel name = new JLabel(p.getName());
         name.setFont(Theme.regular(12));
         name.setForeground(Theme.TEXT);
         name.setAlignmentX(Component.LEFT_ALIGNMENT);
